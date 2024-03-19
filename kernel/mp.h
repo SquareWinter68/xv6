@@ -1,3 +1,6 @@
+#ifndef MULTIPROCESSING_H
+#define MULTIPROCESSING_H
+
 // See MultiProcessor Specification Version 1.[14]
 
 struct mp {             // floating pointer
@@ -51,3 +54,5 @@ struct mpioapic {       // I/O APIC table entry
 #define MPIOAPIC  0x02  // One per I/O APIC
 #define MPIOINTR  0x03  // One per bus interrupt source
 #define MPLINTR   0x04  // One per system interrupt source
+
+#endif

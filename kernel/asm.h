@@ -2,6 +2,9 @@
 // assembler macros to create x86 segments
 //
 
+#ifndef ASM_H
+#define ASM_H
+
 #define SEG_NULLASM                                             \
 	.word 0, 0;                                             \
 	.byte 0, 0, 0, 0
@@ -16,3 +19,5 @@
 #define STA_X     0x8       // Executable segment
 #define STA_W     0x2       // Writeable (non-executable segments)
 #define STA_R     0x2       // Readable (executable segments)
+
+#endif

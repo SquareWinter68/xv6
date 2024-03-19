@@ -1,3 +1,6 @@
+#ifndef USER_SPACE_H
+#define USER_SPACE_H
+
 struct stat;
 struct rtcdate;
 
@@ -23,6 +26,7 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int getcwd(void*, int);
 
 // ulib.c
 int stat(const char*, struct stat*);
@@ -40,3 +44,6 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+
+
+#endif

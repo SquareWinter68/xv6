@@ -1,3 +1,6 @@
+#ifndef MEMORY_MANAGEMENT_UNIT_H
+#define MEMORY_MANAGEMENT_UNIT_H
+
 // This file contains definitions for the
 // x86 memory management unit (MMU).
 
@@ -170,4 +173,5 @@ struct taskstate {
 	(gate) |= ((uint64)(off) >> 16) << 48;                    \
 }
 
+#endif
 #endif

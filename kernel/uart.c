@@ -67,7 +67,10 @@ uartgetc(void)
 		return -1;
 	if(!(inb(COM1+5) & 0x01))
 		return -1;
-	return inb(COM1+0);
+	int c = inb(COM1+0); 
+	//return inb(COM1+0);
+	
+	return c;
 }
 
 void

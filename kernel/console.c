@@ -15,6 +15,12 @@
 #include "proc.h"
 #include "x86.h"
 
+void history_buff(char current_char, int eol_flag);
+extern int shift_flag;
+void write_to_buffer(char* string);
+void arrow_handling(int keycode);
+int color_flag = 0;
+
 static void consputc(int);
 
 static int panicked = 0;
@@ -141,8 +147,11 @@ cgaputc(int c)
 		pos += 80 - pos%80;
 	else if(c == BACKSPACE){
 		if(pos > 0) --pos;
-	} else
-		crt[pos++] = (c&0xff) | 0x0700;  // black on white
+	} else if (color_flag){
+		crt[pos++] = (c&0xff) | 0x0200;  // black on white
+		color_flag = 0;
+	 }else
+	 	crt[pos++] = (c&0xff) | 0x0700;  // black on white
 
 	if(pos < 0 || pos > 25*80)
 		panic("pos under/overflow");
@@ -186,13 +195,16 @@ struct {
 
 #define C(x)  ((x)-'@')  // Control-x
 
+int char_test;
 void
 consoleintr(int (*getc)(void))
 {
+	static int flagh;
 	int c, doprocdump = 0;
 
 	acquire(&cons.lock);
 	while((c = getc()) >= 0){
+		char_test = c;
 		switch(c){
 		case C('P'):  // Process listing.
 			// procdump() locks cons.lock indirectly; invoke later
@@ -214,8 +226,12 @@ consoleintr(int (*getc)(void))
 		default:
 			if(c != 0 && input.e-input.r < INPUT_BUF){
 				c = (c == '\r') ? '\n' : c;
-				input.buf[input.e++ % INPUT_BUF] = c;
-				consputc(c);
+				
+				if (c != 226 && c != 227){
+					input.buf[input.e++ % INPUT_BUF] = c;
+					consputc(c);
+				}
+				
 				if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
 					input.w = input.e;
 					wakeup(&input.r);
@@ -225,10 +241,28 @@ consoleintr(int (*getc)(void))
 		}
 	}
 	release(&cons.lock);
+	arrow_handling(char_test);
 	if(doprocdump) {
 		procdump();  // now call procdump() wo. cons.lock held
 	}
 }
+
+typedef struct tuple{
+	char string[INPUT_BUF];
+	int edited;
+} tuple;
+
+tuple tp1 = {.edited = 0, .string = {[127] = '\0'}};
+tuple tp2 = {.edited = 0, .string = {[127] = '\0'}};
+tuple tp3 = {.edited = 0, .string = {[127] = '\0'}};
+
+typedef struct history{
+	tuple* tuples[3];
+	int read, write, current_pos;
+	
+} history;
+history hist = {.read = 0, .write = 0, .current_pos = 0 , .tuples = {&tp1, &tp2, &tp3}};
+
 
 int
 consoleread(struct inode *ip, char *dst, int n)
@@ -254,13 +288,19 @@ consoleread(struct inode *ip, char *dst, int n)
 				// Save ^D for next time, to make sure
 				// caller gets a 0-byte result.
 				input.r--;
+				history_buff(c, 1);
 			}
 			break;
 		}
+
 		*dst++ = c;
 		--n;
-		if(c == '\n')
+		if(c == '\n'){
+			history_buff(c, 1);
 			break;
+		}
+		history_buff(c,0);
+			
 	}
 	release(&cons.lock);
 	ilock(ip);
@@ -295,3 +335,81 @@ consoleinit(void)
 	ioapicenable(IRQ_KBD, 0);
 }
 
+
+
+void history_buff(char current_char, int eol_flag){
+	if (eol_flag){
+		hist.tuples[hist.write]->edited = 1;
+		hist.write = (++hist.write % 3);
+		hist.current_pos = 0;
+		return;
+	}
+	if (hist.tuples[hist.write]->edited){
+		for (int i = 0; i < INPUT_BUF; i++){
+			hist.tuples[hist.write]->string[i] = '\0';
+		}
+		hist.tuples[hist.write]->edited = 0;
+	}
+	hist.tuples[hist.write]->string[hist.current_pos++] = current_char;
+	
+}
+// helper to print only even keyboard interups (get rid of key released)
+static int once = 0;
+//helper for up down problem
+void arrow_handling(int keycode){
+	
+	// if (shift_flag && keycode == 226 && !(once&1)){
+	// 	// ARROW UP CODE
+	// 	hist.read = (hist.read - 1 + 3) % 3; // Move to the previous entry in a cyclic manner
+	// 	write_to_buffer(hist.tuples[hist.read]->string);
+	// }
+	// else if (shift_flag && keycode == 227 && !(once&1)){
+	// 	// ARROW DN CODE
+	// 	hist.read = (hist.read + 1) % 3; // Move to the next entry in a cyclic manner
+	// 	write_to_buffer(hist.tuples[hist.read]->string);
+	// }
+	if (shift_flag && keycode == 226 && !(once & 1)) {
+    // ARROW UP CODE
+    do {
+        hist.read = (hist.read - 1 + 3) % 3; // Move to the previous entry in a cyclic manner
+    } while (hist.tuples[hist.read]->string[0] == '\0'); // Skip empty strings
+    	write_to_buffer(hist.tuples[hist.read]->string);
+	} 	
+	else if (shift_flag && keycode == 227 && !(once & 1)) {
+    // ARROW DN CODE
+    do {
+        hist.read = (hist.read + 1) % 3; // Move to the next entry in a cyclic manner
+    } while (hist.tuples[hist.read]->string[0] == '\0'); // Skip empty strings
+    	write_to_buffer(hist.tuples[hist.read]->string);
+	}
+	once ++;
+	
+
+	//     input.buf[input.e++ % INPUT_BUF] = 'l';
+    // consputc('l');
+    // input.buf[input.e++ % INPUT_BUF] = 's';
+    // consputc('s');
+    // input.buf[input.e++ % INPUT_BUF] = '\n';
+    // consputc('\n');
+
+    // // Wake up any process waiting for input
+    // input.w = input.e;
+    // wakeup(&input.r);
+
+}
+
+void write_to_buffer(char* string){
+	int counter = 0;
+	int i,c,count;
+	count = 1;
+		while(input.e > input.r ){
+			cgaputc(BACKSPACE);
+			input.e--;
+		}
+	for(i = 0; (c = string[i] & 0xff) != 0; i++){
+		input.buf[input.e++ % INPUT_BUF] = c;
+		color_flag = 1;
+		consputc(c);
+		
+	}
+}

@@ -80,6 +80,7 @@ OBJCOPY = $(TOOLPREFIX)objcopy
 STRIPNOTES = -R '.note' -R '.note.*'
 OBJDUMP = $(TOOLPREFIX)objdump
 CFLAGS = -mgeneral-regs-only -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -ggdb -m32 -fno-omit-frame-pointer -I.
+#CFLAGS = -mgeneral-regs-only -fno-pic -static -fno-builtin -fno-strict-aliasing -Og -g -Wall -ggdb -m32 -fno-omit-frame-pointer -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 ASFLAGS = -m32 -I. -gdwarf-2 -Wa,-divide
 # FreeBSD ld wants ``elf_i386_fbsd''
@@ -217,11 +218,11 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 ifndef CPUS
 CPUS := 1
 endif
-QEMUOPTS = -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
+QEMUOPTS = -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512  $(QEMUEXTRA)
 
 .PHONY: qemu
 qemu: fs.img xv6.img
-	$(QEMU) $(QEMUOPTS)
+	$(QEMU) $(QEMUOPTS) #-nographic
 
 .PHONY: qemu-memfs
 qemu-memfs: xv6memfs.img
@@ -234,6 +235,10 @@ qemu-nox: fs.img xv6.img
 .gdbinit: .gdbinit.tmpl
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@
 
+.PHONY: qemu-kitty
+qemu-kitty:
+	kitty make qemu-nox
+
 .PHONY: qemu-gdb
 qemu-gdb: fs.img xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
@@ -243,6 +248,10 @@ qemu-gdb: fs.img xv6.img .gdbinit
 qemu-nox-gdb: fs.img xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -serial mon:stdio -nographic $(QEMUOPTS) -S $(QEMUGDB)
+
+.PHONY: qemu-kitty-gdb
+qemu-kitty-gdb:
+	kitty make qemu-nox-gdb
 
 # Include the -MMD dependency files.
 -include $(shell [ -d .deps ] && find .deps -type f)

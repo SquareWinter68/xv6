@@ -3,6 +3,8 @@
 #include "defs.h"
 #include "kbd.h"
 
+int shift_flag = 0;
+
 int
 kbdgetc(void)
 {
@@ -30,7 +32,7 @@ kbdgetc(void)
 		data |= 0x80;
 		shift &= ~E0ESC;
 	}
-
+	shift_flag = (shift&1);
 	shift |= shiftcode[data];
 	shift ^= togglecode[data];
 	c = charcode[shift & (CTL | SHIFT)][data];

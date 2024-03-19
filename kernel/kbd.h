@@ -1,3 +1,6 @@
+#ifndef KEYBOARD_INTERFACE_H
+#define KEYBOARD_INTERFACE_H
+
 // PC keyboard interface constants
 
 #define KBSTATP         0x64    // kbd controller status port(I)
@@ -27,6 +30,9 @@
 #define KEY_PGDN        0xE7
 #define KEY_INS         0xE8
 #define KEY_DEL         0xE9
+
+#define KEY_UP_SHIFT	0x34
+#define KEY_DN_SHIFT	0x35
 
 // C('A') == Control-A
 #define C(x) (x - '@')
@@ -110,3 +116,4 @@ static uchar ctlmap[256] =
 	[0xD2] KEY_INS,   [0xD3] KEY_DEL
 };
 
+#endif
