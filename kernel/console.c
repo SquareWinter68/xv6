@@ -21,6 +21,25 @@ void write_to_buffer(char* string);
 void arrow_handling(int keycode);
 int color_flag = 0;
 
+#define INPUT_BUF 128
+
+typedef struct tuple{
+	char string[INPUT_BUF];
+	int edited;
+} tuple;
+
+tuple tp1 = {.edited = 0, .string = {[127] = '\0'}};
+tuple tp2 = {.edited = 0, .string = {[127] = '\0'}};
+tuple tp3 = {.edited = 0, .string = {[127] = '\0'}};
+
+typedef struct history{
+	tuple* tuples[3];
+	int read, write, current_pos;
+	
+} history;
+history hist = {.read = 0, .write = 0, .current_pos = 0 , .tuples = {&tp1, &tp2, &tp3}};
+
+
 static void consputc(int);
 
 static int panicked = 0;
@@ -185,7 +204,6 @@ consputc(int c)
 	cgaputc(c);
 }
 
-#define INPUT_BUF 128
 struct {
 	char buf[INPUT_BUF];
 	uint r;  // Read index
@@ -233,6 +251,9 @@ consoleintr(int (*getc)(void))
 				}
 				
 				if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
+					if (input.e == input.r+INPUT_BUF){
+						history_buff(c, 1);
+					}
 					input.w = input.e;
 					wakeup(&input.r);
 				}
@@ -246,23 +267,6 @@ consoleintr(int (*getc)(void))
 		procdump();  // now call procdump() wo. cons.lock held
 	}
 }
-
-typedef struct tuple{
-	char string[INPUT_BUF];
-	int edited;
-} tuple;
-
-tuple tp1 = {.edited = 0, .string = {[127] = '\0'}};
-tuple tp2 = {.edited = 0, .string = {[127] = '\0'}};
-tuple tp3 = {.edited = 0, .string = {[127] = '\0'}};
-
-typedef struct history{
-	tuple* tuples[3];
-	int read, write, current_pos;
-	
-} history;
-history hist = {.read = 0, .write = 0, .current_pos = 0 , .tuples = {&tp1, &tp2, &tp3}};
-
 
 int
 consoleread(struct inode *ip, char *dst, int n)
