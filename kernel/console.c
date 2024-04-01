@@ -17,6 +17,7 @@
 
 void history_buff(char current_char, int eol_flag);
 extern int shift_flag;
+extern int alt_flag;
 void write_to_buffer(char* string);
 void arrow_handling(int keycode);
 int color_flag = 0;
@@ -372,14 +373,14 @@ void arrow_handling(int keycode){
 	// 	hist.read = (hist.read + 1) % 3; // Move to the next entry in a cyclic manner
 	// 	write_to_buffer(hist.tuples[hist.read]->string);
 	// }
-	if (shift_flag && keycode == 226 && !(once & 1)) {
+	if (shift_flag && keycode == 226 && !(once & 1) && alt_flag == 0) {
     // ARROW UP CODE
     do {
         hist.read = (hist.read - 1 + 3) % 3; // Move to the previous entry in a cyclic manner
     } while (hist.tuples[hist.read]->string[0] == '\0'); // Skip empty strings
     	write_to_buffer(hist.tuples[hist.read]->string);
 	} 	
-	else if (shift_flag && keycode == 227 && !(once & 1)) {
+	else if (shift_flag && keycode == 227 && !(once & 1)&& alt_flag == 0) {
     // ARROW DN CODE
     do {
         hist.read = (hist.read + 1) % 3; // Move to the next entry in a cyclic manner

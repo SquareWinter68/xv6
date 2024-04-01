@@ -4,6 +4,7 @@
 #include "kbd.h"
 
 int shift_flag = 0;
+int alt_flag = 0;
 
 int
 kbdgetc(void)
@@ -33,6 +34,7 @@ kbdgetc(void)
 		shift &= ~E0ESC;
 	}
 	shift_flag = (shift&1);
+	alt_flag = (shift&4);
 	shift |= shiftcode[data];
 	shift ^= togglecode[data];
 	c = charcode[shift & (CTL | SHIFT)][data];
