@@ -27,6 +27,8 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int getcwd(void*, int);
+// takes path as char argument
+int symlink(char*, char*);
 
 // ulib.c
 int stat(const char*, struct stat*);

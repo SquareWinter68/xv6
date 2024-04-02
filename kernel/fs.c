@@ -449,6 +449,9 @@ stati(struct inode *ip, struct stat *st)
 int
 readi(struct inode *ip, char *dst, uint off, uint n)
 {
+	// This function reads the inode data from the offset adress and n bytes ahead
+	// So it reads the data from off to off+n
+	// The data is read into the dst pointer
 	uint tot, m;
 	struct buf *bp;
 
@@ -477,23 +480,37 @@ readi(struct inode *ip, char *dst, uint off, uint n)
 int
 writei(struct inode *ip, char *src, uint off, uint n)
 {
+	// it is obvious that the src is the data to be saved in the inode ip
 	uint tot, m;
+	// This is what gets written to a block on the disk, this contains the file data
 	struct buf *bp;
 
 	if(ip->type == T_DEV){
+		// NDEV = MAXIMUM MAJOR DEVICWE NUMBER, 0 = MINIMUM
+		// devsw is an array containg NDEV instanses of the struct devsw,
+		// this struct has two function pointer read and write, and this if statement is 
+		// checking whether the write is set
 		if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].write)
 			return -1;
 		return devsw[ip->major].write(ip, src, n);
+		// write n blocks to device
+		// the reaso each device has a function pointer to a read and write function is
+		// because these might behave differently across devices, and are dependend on
+		// their device drivers
 	}
 
 	if(off > ip->size || off + n < off)
 		return -1;
+	// checks that the offset is within the reach of the indode
+	// and that offset + n does not overflow
 	if(off + n > MAXFILE*BSIZE)
 		return -1;
-
+	// writes to an in memory buffer that later gets marked as dirty in logwrite and 
+	// finally written to the disk
 	for(tot=0; tot<n; tot+=m, off+=m, src+=m){
 		bp = bread(ip->dev, bmap(ip, off/BSIZE));
 		m = min(n - tot, BSIZE - off%BSIZE);
+		// memmove(destination_adr, source_adr, bytes)
 		memmove(bp->data + off%BSIZE, src, m);
 		log_write(bp);
 		brelse(bp);
@@ -519,33 +536,42 @@ namecmp(const char *s, const char *t)
 struct inode*
 dirlookup(struct inode *dp, char *name, uint *poff)
 {
-	uint off, inum;
+	uint offset, inum;
 	struct dirent de;
 
 	if(dp->type != T_DIR)
+		//BRUH, this should not be called for an inode that isnt a directory!!!
 		panic("dirlookup not DIR");
 
-	for(off = 0; off < dp->size; off += sizeof(de)){
-		if(readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+	for(offset = 0; offset < dp->size; offset += sizeof(de)){
+		// reads the inode data from the offset "offset" to the offset + n
+		// where n is the size of each directory entry
+		// So this basically loops through the dirents of a directory, untill it finds
+		// one that matches the name, in which case it returns the inode of the dirent
+		// and sets the poff pointer to offset
+		if(readi(dp, (char*)&de, offset, sizeof(de)) != sizeof(de))
 			panic("dirlookup read");
 		if(de.inum == 0)
 			continue;
 		if(namecmp(name, de.name) == 0){
 			// entry matches path element
 			if(poff)
-				*poff = off;
+				*poff = offset;
 			inum = de.inum;
 			return iget(dp->dev, inum);
 		}
 	}
 
 	return 0;
+	// ERROR, No dirents matched the name provided
 }
 
 // Write a new directory entry (name, inum) into the directory dp.
 int
 dirlink(struct inode *dp, char *name, uint inum)
 {
+	// As the comment says abobe new dirent, basically where the name is linked with the 
+	// coresponding inode
 	int off;
 	struct dirent de;
 	struct inode *ip;
@@ -554,22 +580,35 @@ dirlink(struct inode *dp, char *name, uint inum)
 	if((ip = dirlookup(dp, name, 0)) != 0){
 		iput(ip);
 		return -1;
+		// Cannot link a name to another inode if the name already exist in the directory
+		// Two names can however point to the same Inode, and this would be an example of
+		// hard linking
 	}
 
 	// Look for an empty dirent.
 	for(off = 0; off < dp->size; off += sizeof(de)){
+		// Loops through inode data, and loads the chunks into de, each chunk incrementing by the 
+		// size of a dirent, once it finds an enpty one it breaks.
 		if(readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
 			panic("dirlink read");
 		if(de.inum == 0)
 			break;
 	}
-
+	// copies the name given as the argument into the empty dirent found above
 	strncpy(de.name, name, DIRSIZ);
+	// Links the name of the file with the inode representing it with the dirent struct
 	de.inum = inum;
 	if(writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+	// Since dp is an inode representing a directory this writei function writes the dient
+	// containng a name and an inode pair to the file the dp points to see comment below.
 		panic("dirlink");
 
 	return 0;
+	// Everything went well
+
+	// Directory inodes are just like regular file indodes, the only difference being that
+	// their data is not file data but rather a list of (name, inode_number) tuples
+	// AKA dirents, directory entries, this is how an inode can contains other inodes
 }
 
 // Paths
@@ -621,24 +660,40 @@ namex(char *path, int nameiparent, char *name)
 	struct inode *ip, *next;
 
 	if(*path == '/')
+	// If path is the root, fetch the inode of the root directory
 		ip = iget(ROOTDEV, ROOTINO);
 	else
+		//If the path is however an actuall path, get the inode of the current working dir
+		// from which the process was called.
 		ip = idup(myproc()->cwd);
 
 	while((path = skipelem(path, name)) != 0){
+		// skipelem takes a path and a name, it sets the name to the first element of the provided
+		// path and returns the original path provided minus the first element and without leading
+		// slashes. exaple skipelem("//root/hello"), name = "root", returns -> "hello"
+		// two slashes were added on purpose to demonstrate.
+		// ==========================================IMPORTANT=====================================
+		// WHEN IT RETURNS 0, THERE IS NO MORE PATH TO PARSE, IT IS EMPTY.
+		// see skipelem for more examples.
 		ilock(ip);
 		if(ip->type != T_DIR){
 			iunlockput(ip);
 			return 0;
+			//ERROR, cannot not be directory
 		}
 		if(nameiparent && *path == '\0'){
 			// Stop one level early.
 			iunlock(ip);
 			return ip;
 		}
+		// Searches the dirents of this directory to find one with the same name as "name"
+		// once it does, it sets next to point to it
+		// If next == 0, that means that there were no dirents matching the name
+		// and the procces is terminated, hence retutn 0 
 		if((next = dirlookup(ip, name, 0)) == 0){
 			iunlockput(ip);
 			return 0;
+			//ERROR
 		}
 		iunlockput(ip);
 		ip = next;
@@ -646,6 +701,7 @@ namex(char *path, int nameiparent, char *name)
 	if(nameiparent){
 		iput(ip);
 		return 0;
+		//ERROR
 	}
 	return ip;
 }
@@ -653,12 +709,22 @@ namex(char *path, int nameiparent, char *name)
 struct inode*
 namei(char *path)
 {
+	// resolves the directory and returns the inode corresponding to the provided path
 	char name[DIRSIZ];
 	return namex(path, 0, name);
+
+	// Example namei("root/home/test/hello"), return the inode for root/home/test/hello
+	// Name has to be provided as the function argument but is in this case unlike the one
+	// under discarded.
 }
 
 struct inode*
 nameiparent(char *path, char *name)
 {
+	// resolves the parrent directory and returns it's inode, while it copies the 
+	// name of the child into the name pointer
 	return namex(path, 1, name);
+
+	// Example nameiparrent("root/home/test/hello", &name), retuns inode for root/home/test
+	// and copies hello into the name 
 }

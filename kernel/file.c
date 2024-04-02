@@ -9,7 +9,8 @@
 #include "spinlock.h"
 #include "sleeplock.h"
 #include "file.h"
-
+// Declares an arrsy of devsw structs located in file.h, NDEV is the maximum major device number
+// This is basically an array of devices
 struct devsw devsw[NDEV];
 struct {
 	struct spinlock lock;
