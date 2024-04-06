@@ -88,6 +88,7 @@ runcmd(struct cmd *cmd)
 		rcmd = (struct redircmd*)cmd;
 		close(rcmd->fd);
 		if(open(rcmd->file, rcmd->mode) < 0){
+			//fprintf(2, "nigga i isolated the problem\n");
 			fprintf(2, "open %s failed\n", rcmd->file);
 			exit();
 		}
@@ -330,6 +331,7 @@ struct cmd *nulterminate(struct cmd*);
 struct cmd*
 parsecmd(char *s)
 {
+	// called by main
 	char *es;
 	struct cmd *cmd;
 
@@ -347,6 +349,7 @@ parsecmd(char *s)
 struct cmd*
 parseline(char **ps, char *es)
 {
+	// called by parsecmd, and parseblock
 	struct cmd *cmd;
 
 	cmd = parsepipe(ps, es);
@@ -364,6 +367,7 @@ parseline(char **ps, char *es)
 struct cmd*
 parsepipe(char **ps, char *es)
 {
+	// called by parseline
 	struct cmd *cmd;
 
 	cmd = parseexec(ps, es);
@@ -377,6 +381,7 @@ parsepipe(char **ps, char *es)
 struct cmd*
 parseredirs(struct cmd *cmd, char **ps, char *es)
 {
+	// called by parseblock, parseexec, 
 	int tok;
 	char *q, *eq;
 
@@ -392,6 +397,8 @@ parseredirs(struct cmd *cmd, char **ps, char *es)
 			cmd = redircmd(cmd, q, eq, O_WRONLY|O_CREATE, 1);
 			break;
 		case '+':  // >>
+			// if gettoken sees two of these > it returns a +
+			// file descriptor stdout
 			cmd = redircmd(cmd, q, eq, O_WRONLY|O_CREATE, 1);
 			break;
 		}
@@ -402,6 +409,7 @@ parseredirs(struct cmd *cmd, char **ps, char *es)
 struct cmd*
 parseblock(char **ps, char *es)
 {
+	// called by parseexec, 
 	struct cmd *cmd;
 
 	if(!peek(ps, es, "("))
@@ -418,6 +426,7 @@ parseblock(char **ps, char *es)
 struct cmd*
 parseexec(char **ps, char *es)
 {
+	// called by parsepipe
 	char *q, *eq;
 	int tok, argc;
 	struct execcmd *cmd;

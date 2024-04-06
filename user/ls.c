@@ -29,8 +29,8 @@ ls(char *path)
 	int file_descriptor;
 	struct dirent directory_entry;
 	struct stat stat_struct;
-
-	if((file_descriptor = open(path, 0)) < 0){
+									// set the onofollow flag here
+	if((file_descriptor = open(path, 0x004)) < 0){
 		fprintf(2, "ls: cannot open %s\n", path);
 		return;
 	}
@@ -43,7 +43,7 @@ ls(char *path)
 
 	switch(stat_struct.type){
 	case T_FILE:
-		printf("%s %d %d %d %d\n", fmtname(path), stat_struct.type, stat_struct.ino, stat_struct.size, (stat_struct.size/BSIZE)+1);
+		printf("%s %d %d %d %d\n", fmtname(path), stat_struct.type, stat_struct.ino, stat_struct.size, stat_struct.block);
 		break;
 
 	case T_DIR:
@@ -63,7 +63,7 @@ ls(char *path)
 				printf("ls: cannot stat %s\n", buf);
 				continue;
 			}
-			printf("%s %d %d %d %d\n", fmtname(buf), stat_struct.type, stat_struct.ino, stat_struct.size, (stat_struct.size/BSIZE)+1);
+			printf("%s %d %d %d %d\n", fmtname(buf), stat_struct.type, stat_struct.ino, stat_struct.size, stat_struct.block);
 		}
 		break;
 	}

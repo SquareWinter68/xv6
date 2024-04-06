@@ -5,6 +5,8 @@
 #define O_WRONLY  0x001
 #define O_RDWR    0x002
 #define O_CREATE  0x200
-#define O_NOFOLLOW 0x003
+#define O_NOFOLLOW 0x004
+// O_nofollow does not collide with any other flags probably
+//something that would give true only when anded with itself
 
 #endif

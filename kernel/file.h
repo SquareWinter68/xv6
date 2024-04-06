@@ -29,7 +29,7 @@ struct inode {
 	short nlink;		// number of hard links to the file
 	uint size;			// Number of bytes for the file, in case of symlinks only the path length
 						// more exaustive info can be found in the link below
-	uint addrs[NDIRECT+1];	// adress for the file data
+	uint addrs[NDIRECT+1];	// adress for the file data, ndirect is 12 blocks
 };
 
 // table mapping major device number to

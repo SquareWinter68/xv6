@@ -289,11 +289,12 @@ ilock(struct inode *ip)
 	struct buf *bp;
 	struct dinode *dip;
 
-	if(ip == 0 || ip->ref < 1)
+	if(ip == 0 || ip->ref < 1){
+		cprintf("I caused a panic in ilock FIRST\n");
 		panic("ilock");
-
+	}
+	//cprintf("OVER ACQUIRE SLEEP\n");
 	acquiresleep(&ip->lock);
-
 	if(ip->valid == 0){
 		bp = bread(ip->dev, IBLOCK(ip->inum, sb));
 		dip = (struct dinode*)bp->data + ip->inum%IPB;
@@ -305,8 +306,11 @@ ilock(struct inode *ip)
 		memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
 		brelse(bp);
 		ip->valid = 1;
-		if(ip->type == 0)
+		if(ip->type == 0){
+			cprintf("I caused a panic in ilock SECOND\n");
 			panic("ilock: no type");
+		}
+			
 	}
 }
 
@@ -432,6 +436,24 @@ itrunc(struct inode *ip)
 	iupdate(ip);
 }
 
+int count_blocks(struct inode* inode_pointer){
+	//cprintf("Entered count blocks\n");
+	int i;
+	int blocks;
+	for(i = 0; i < NDIRECT && inode_pointer->addrs[i] != 0; i++){
+		blocks ++;
+	}
+	if (inode_pointer->addrs[NDIRECT] != 0) {
+        uint indirect_block[BSIZE / sizeof(uint)];
+														// Jump to the end of direct blocks
+        readi(inode_pointer, indirect_block, NDIRECT * sizeof(uint), sizeof(indirect_block));
+        for (i = 0; i < BSIZE / sizeof(uint) && indirect_block[i] != 0; i++) {
+            blocks++;
+        }
+    }
+	return blocks;
+}
+
 // Copy stat information from inode.
 // Caller must hold ip->lock.
 void
@@ -442,6 +464,7 @@ stati(struct inode *ip, struct stat *st)
 	st->type = ip->type;
 	st->nlink = ip->nlink;
 	st->size = ip->size;
+	st->block = count_blocks(ip);
 }
 
 // Read data from inode.
@@ -666,8 +689,10 @@ namex(char *path, int nameiparent, char *name)
 		//If the path is however an actuall path, get the inode of the current working dir
 		// from which the process was called.
 		ip = idup(myproc()->cwd);
+	//cprintf("hello from fs.c/namex, i managed to get the cwd\n");
 
 	while((path = skipelem(path, name)) != 0){
+		//cprintf("I am in the while loop at least\n");
 		// skipelem takes a path and a name, it sets the name to the first element of the provided
 		// path and returns the original path provided minus the first element and without leading
 		// slashes. exaple skipelem("//root/hello"), name = "root", returns -> "hello"
@@ -675,17 +700,23 @@ namex(char *path, int nameiparent, char *name)
 		// ==========================================IMPORTANT=====================================
 		// WHEN IT RETURNS 0, THERE IS NO MORE PATH TO PARSE, IT IS EMPTY.
 		// see skipelem for more examples.
+		
+		//cprintf("this ilock seems to get me");
 		ilock(ip);
+		//cprintf("AM I STILL ALIVE\n");
 		if(ip->type != T_DIR){
+			//cprintf("Maybe I fail because i am not a directoty\n");
 			iunlockput(ip);
 			return 0;
 			//ERROR, cannot not be directory
 		}
 		if(nameiparent && *path == '\0'){
 			// Stop one level early.
+			//cprintf("Maybe i get to nameiparent\n");
 			iunlock(ip);
 			return ip;
 		}
+		//cprintf("Do i reach here\n");
 		// Searches the dirents of this directory to find one with the same name as "name"
 		// once it does, it sets next to point to it
 		// If next == 0, that means that there were no dirents matching the name
@@ -697,6 +728,7 @@ namex(char *path, int nameiparent, char *name)
 		}
 		iunlockput(ip);
 		ip = next;
+		//cprintf("Im i stuck here?\n");
 	}
 	if(nameiparent){
 		iput(ip);
