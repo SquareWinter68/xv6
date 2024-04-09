@@ -46,6 +46,7 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+int get_symlink_data(char* path, char* destination, int passed_file_descriptor);
 
 
 #endif

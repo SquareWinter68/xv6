@@ -29,37 +29,37 @@ fmtname(char *path)
 	return buf;
 }
 
-int get_symlink_data(char* path, char* destination, int passed_file_descriptor){
-    // this function will store the data in the inode of the symlink to the destinaion buffer
-    //char buffer[DIRSIZ];
+// int get_symlink_data(char* path, char* destination, int passed_file_descriptor){
+//     // this function will store the data in the inode of the symlink to the destinaion buffer
+//     //char buffer[DIRSIZ];
     
-    // Even though the 0 file descriptor is by convention used for stdin, here it will be used
-    // treated as null, aka like it was not sent at all
-    int file_descriptor;
-    int read_sucess;
-    if (passed_file_descriptor){
-        if ((read_sucess = read(passed_file_descriptor, destination, DIRSIZ)) <= 0){
-            fprintf(2, "symlinkinfo: cannot read %s\n", path);
-            return 0;
-        }
-        return 1;
-    }
-    else {
-        if((file_descriptor = open(path, 0x004)) < 0){
-		    fprintf(2, "symlinkinfo: cannot open %s\n", path);
-		    return 0;
-	    }
-        //int read(int, void*, int);
-        // read(descriptor, buffer, bytes)
-        memset(destination, 0, DIRSIZ);
-        if ((read_sucess = read(file_descriptor, destination, DIRSIZ)) <= 0){
-            fprintf(2, "symlinkinfo: cannot read %s\n", path);
-            return 0;
-        }
-        return 1;
-    }
+//     // Even though the 0 file descriptor is by convention used for stdin, here it will be used
+//     // treated as null, aka like it was not sent at all
+//     int file_descriptor;
+//     int read_sucess;
+//     if (passed_file_descriptor){
+//         if ((read_sucess = read(passed_file_descriptor, destination, DIRSIZ)) <= 0){
+//             //fprintf(2, "symlinkinfo: cannot read %s\n", (path+2));
+//             return 0;
+//         }
+//         return 1;
+//     }
+//     else {
+//         if((file_descriptor = open(path, 0x004)) < 0){
+// 		    fprintf(2, "symlinkinfo: cannot open %s\n", (path+2));
+// 		    return 0;
+// 	    }
+//         //int read(int, void*, int);
+//         // read(descriptor, buffer, bytes)
+//         memset(destination, 0, DIRSIZ);
+//         if ((read_sucess = read(file_descriptor, destination, DIRSIZ)) <= 0){
+//             //fprintf(2, "symlinkinfo: cannot read %s\n", (path+2));
+//             return 0;
+//         }
+//         return 1;
+//     }
     
-}
+// }
 
 void
 symlinkinfo(char *path)
@@ -70,12 +70,12 @@ symlinkinfo(char *path)
 	struct stat stat_struct;
 									// set the onofollow flag here
 	if((file_descriptor = open(path, 0x004)) < 0){
-		fprintf(2, "symlinkinfo: cannot open %s\n", path);
+		fprintf(2, "symlinkinfo: cannot open %s\n", (path+2));
 		return;
 	}
 
 	if(fstat(file_descriptor, &stat_struct) < 0){
-		fprintf(2, "symlinkinfo: cannot stat %s\n", path);
+		fprintf(2, "symlinkinfo: cannot stat %s\n", (path+2));
 		close(file_descriptor);
 		return;
 	}
@@ -85,7 +85,8 @@ symlinkinfo(char *path)
 		//printf("%s %d %d %d %d\n", fmtname(path), stat_struct.type, stat_struct.ino, stat_struct.size, (stat_struct.size/BSIZE)+1);
         char dest[DIRSIZ];
         get_symlink_data("", dest, file_descriptor);  
-		printf("%s -> %s\n", path, dest);
+							// offset by two to avoid ./
+		printf("%s -> %s\n", (path+2), dest);
         break;
 
 	case T_DIR:
@@ -111,10 +112,15 @@ symlinkinfo(char *path)
 				continue;
 			}
             if (stat_struct.type == 4){
-                printf("found a symlink yeayea!\n");
+                //printf("found a symlink yeayea!\n");
                 char dest[DIRSIZ];
-                if (get_symlink_data(buf, dest, 0))
-                    printf("%s -> %s\n", buf, dest);
+                if (get_symlink_data(buf, dest, 0) == 0){
+					fprintf(2, "symlinkinfo: cannot read %s\n", (path+2));
+				}
+				else {
+					printf("%s -> %s\n", (buf+2), dest);
+				}
+                    
             }
 			//printf("%s %d %d %d %d\n", fmtname(buf), stat_struct.type, stat_struct.ino, stat_struct.size, (stat_struct.size/BSIZE)+1);
 		}

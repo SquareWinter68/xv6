@@ -63,9 +63,28 @@ ls(char *path)
 				printf("ls: cannot stat %s\n", buf);
 				continue;
 			}
-			printf("%s %d %d %d %d\n", fmtname(buf), stat_struct.type, stat_struct.ino, stat_struct.size, stat_struct.block);
+			if (stat_struct.type == T_SYMLINK){
+				char dest[DIRSIZ];
+                if (get_symlink_data(buf, dest, 0) == 0){
+					fprintf(2, "symlinkinfo: cannot read %s\n", (path+2));
+				}
+				else {
+					printf("%s %d %d %d %d -> %s\n", fmtname(buf), stat_struct.type, stat_struct.ino, stat_struct.size, stat_struct.block, dest);
+				}	
+			}
+			else {
+				printf("%s %d %d %d %d\n", fmtname(buf), stat_struct.type, stat_struct.ino, stat_struct.size, stat_struct.block);
+			}
+			
 		}
 		break;
+
+	case T_SYMLINK:
+		printf("ENTERED GERE\n");
+		char dest[DIRSIZ];
+        get_symlink_data("", dest, file_descriptor);  
+		printf("%s %d %d %d %d -> %s\n", fmtname(buf), stat_struct.type, stat_struct.ino, stat_struct.size, stat_struct.block, dest);
+        break;
 	}
 	close(file_descriptor);
 }

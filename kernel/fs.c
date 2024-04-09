@@ -443,15 +443,23 @@ int count_blocks(struct inode* inode_pointer){
 	for(i = 0; i < NDIRECT && inode_pointer->addrs[i] != 0; i++){
 		blocks ++;
 	}
-	if (inode_pointer->addrs[NDIRECT] != 0) {
-        uint indirect_block[BSIZE / sizeof(uint)];
-														// Jump to the end of direct blocks
-        readi(inode_pointer, indirect_block, NDIRECT * sizeof(uint), sizeof(indirect_block));
-        for (i = 0; i < BSIZE / sizeof(uint) && indirect_block[i] != 0; i++) {
-            blocks++;
+	  if (inode_pointer->addrs[NDIRECT] != 0) {
+        uint buf[NINDIRECT];
+		blocks ++;
+        // Read indirect block into buffer
+        struct buf *bp = bread(inode_pointer->dev, inode_pointer->addrs[NDIRECT]);
+        memmove(buf, bp->data, BSIZE);
+        brelse(bp);
+
+        // Count non-zero entries in the indirect block
+        for (int i = 0; i < NINDIRECT; i++) {
+            if (buf[i] != 0)
+                blocks++;
         }
     }
-	return blocks;
+
+    return blocks;
+	// return blocks;
 }
 
 // Copy stat information from inode.

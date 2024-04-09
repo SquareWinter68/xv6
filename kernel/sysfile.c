@@ -16,6 +16,8 @@
 #include "file.h"
 #include "fcntl.h"
 
+#define symlink_depth 10
+
 static struct inode*
 create(char *path, short type, short major, short minor);
 // declaring create so that i can use it in sys_symlink which is written over create
@@ -189,145 +191,41 @@ int
 sys_symlink(void){
 	char name[DIRSIZ], *new, *old;
 	struct inode *dp, *ip, *new_node;
+	// pop the arguments provided form the userspace off the stack
 	if(argstr(0, &old) < 0 || argstr(1, &new) < 0)
 		return -1;
-
+	// called at the beginign of file operations
 	begin_op();
-	// Checks wether the node the user wants to link to exists
-	// if((ip = namei(old)) == 0){
-	// 	end_op();
-	// 	return -1;
-	// 	// Does not exist, cannot link to non existant file
-	// }
-	
-	
-	
-	// ilock(ip);
-	// if(ip->type == T_DIR){
-	// 	iunlockput(ip);
-	// 	end_op();
-	// 	return -1;
-	// 	// implement symlinks to dirs later	ilock(ip);
-	// }
-	
-	// iupdate(ip);
-	// iunlock(ip);
-
+	// look for parrent path of path provided example /home/user/Pictures/dog -> returns inode of /home/user/Pictures and, loads dog into the name buffer
 	if((dp = nameiparent(new, name)) == 0){
-		cprintf("entered this bitch");
+		// parretnt path does not exist
 		end_op();
 		return -1;
-	}
-		
-	
+	}	
+	// making the new inode for symlink
 	new_node = create(new, T_SYMLINK, 0, 0);
-	//iunlockput(new_node);
-	// NO need unlock here, Arsen enlightend me, it already comes locked i guess
-	// check create
-	// cprintf("I survived create and am here now\n");
-	// ilock(dp);
-	// if(dp->dev != ip->dev || new_node == 0){
-	// 	iunlock(dp);
-	// 	end_op();
-	// 	cprintf("No not here rally?\n");
-	// 	return -1;
-	// }
 
 	if(new_node == 0){
+		// creation failed
 		end_op();
-		cprintf("No not here rally?\n");
 		return -1;
 	}
-	//iunlock(dp);
-	//ilock(new_node);
+	// writing what the symlink wil link to into the inode
 	if (writei(new_node, old, 0, strlen(old)) != strlen(old)){
+		// write failed
 		iunlockput(new_node);
 		cprintf("error in writing to inode");
 		end_op();
 		return -1;
 	}
+	// create returns locked node, releast the node and drop from memory so that other processes can take it
 	iunlockput(new_node);
+	// at the end of file operations
 	end_op();
-	//cprintf("I should not have made it to the end");
 	return 0;
 
-	// bad:
-	// //iunlockput(ip);
-	// end_op();
-	// return -1;
 }
 
-// changed name to test something
-int
-sys_symlink1(void){
-	char name[DIRSIZ], *new, *old;
-	struct inode *dp, *ip, *new_node;
-
-	if(argstr(0, &old) < 0 || argstr(1, &new) < 0)
-		return -1;
-	cprintf("old: %s\nnew: %s\n", old, new);
-
-	begin_op();
-	// Checks wether the node the user wants to link to exists
-	if((ip = namei(old)) == 0){
-		end_op();
-		return -1;
-		// Does not exist, cannot link to non existant file
-	}
-
-	ilock(ip);
-	if(ip->type == T_DIR){
-		iunlockput(ip);
-		end_op();
-		return -1;
-		// implement symlinks to dirs later	ilock(ip);
-	}
-	// ip declared in if((ip = namei(old)) == 0)
-
-	iupdate(ip);
-	iunlock(ip);
-
-	
-	// the name for the new nod aka link gets copied into the name variable 
-	// because of the function under 
-	if((dp = nameiparent(new, name)) == 0)
-		goto bad;
-		// Could not resolve path aborting linking
-
-	ilock(dp);
-	// Checks that devices match in parrent and child inodes
-	// Creates a dirent containg (name, inode_number) pair in the parent directory dp
-	//ip = create(path, T_SYMLINK, 0, 0)
-	if ((new_node = create(name, T_SYMLINK, 0, 0)) == 0 || dp->dev != new_node->dev){
-		cprintf("the new node creatin fucked up\n");
-		goto bad;
-	}
-	
-	// writei(dest, source, ofset, bytes)
-	ilock(new_node);
-	//if(writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
-	if (writei(new_node, old, 0, strlen(old)) != strlen(old)){
-		iput(new_node);
-		cprintf("error in writing to inode");
-		return -1;
-	}
-	// now write the path to the inode with writei
-	iunlockput(dp);
-	iput(ip);
-	iunlockput(new_node);
-
-	end_op();
-	
-	return 0;
-	// Success, official linked
-
-bad:
-
-	iunlockput(ip);
-	end_op();
-	return -1;
-	
-}
 
 // Is the directory dp empty except for "." and ".." ?
 static int
@@ -438,7 +336,7 @@ create(char *path, short type, short major, short minor)
 	ilock(dp);
 		// If name isn't empty after the above assigntmet to dp, it means thah the 
 		// final element in the path was supposed to be a file
-		// EXAMPLE /home/test/file if file isnt a directory the name wil be set to file,
+		// EXAMPLE /home/test/file if file isnt a directory the name will be set to file,
 		// otherwise the name wil be empty
 	// cprintf("I should be here by now\n");
 	if((ip = dirlookup(dp, name, 0)) != 0){
@@ -492,14 +390,14 @@ create(char *path, short type, short major, short minor)
 }
 
 
-
-// expects locked inode, returns locked inode
-int follow_link(struct inode* inode_, char* name, int count_param){
+// Follows symlinks through layers of indirection untill a destination is reached or depth exceedec
+// expects locked inode, returns locked inode, if the return value is positive, else unlocked inode
+int follow_link(struct inode* inode_, char* name, int count_param, int* ret_counter){
     int count = 0;
     while (inode_->type == T_SYMLINK) {
         memset(name, 0, DIRSIZ);
         readi(inode_, name, 0, inode_->size);
-        // Ulock  the lock under the first if
+		// Ulock  the lock under the first if
         iunlockput(inode_);
         // returns unlocked inode
         inode_ = namei(name);
@@ -509,12 +407,17 @@ int follow_link(struct inode* inode_, char* name, int count_param){
             // no need to close since namei returns open
         }
         if (count == count_param){
-            // same as in the function above
+            // no need to unlock since namei returns unlocked but the node needs to be put.
+			iput(inode_);
             return -1;
         }
         ilock(inode_);
         // lock so the next iteration can do its thing
         count ++;
+		// null defined as 0 cast to void pointer, because this is apparantly the standard
+		if (ret_counter != NULL){
+			(*ret_counter) ++;
+		}
     }
     return 1;
 }
@@ -534,24 +437,45 @@ sys_open(void)
 
 	if(omode & O_CREATE){
 		int flag = 0;
+		// fetch the inode of the provided path
 		ip = namei(path);
 		if (ip == 0){
+			// the file provided does not exist so it will be cerated
+			// not that it matters because xv6 does not support appending to existng files , from the shell anyway
 			ip = create(path, T_FILE, 0, 0);
+			// set flag to skip next conditional, and thusly a double creation
 			flag = 1;
 		}
 		if(flag == 0){
 			ilock(ip);
 			if(ip->type == T_SYMLINK){
-				iunlockput(ip);
-				end_op();
-				return -1;
+				char name[DIRSIZ];
+				int counter = 0;
+				// in any case be it a negative or a positive return value this will have the name of what the final symlink points to
+				if (follow_link(ip, name, symlink_depth, &counter) < 0){
+					// the node was unlocked and put before reaching this code so no need to do it here
+					if (counter == 10){
+						// return error
+						end_op();
+                		return -1;
+					}
+					ip = create(name, T_FILE, 0, 0);
+				}
+				else {
+					// if the return value is positive the inode came back locked, and since a new file is being created the old inode is not needed
+					iunlockput(ip);
+					ip = create(name, T_FILE, 0, 0);
+				}
+				
 			}
 			else {
+				// since it was not a symlink, the node can just be unlocked and put and the file created.
 				iunlockput(ip);
 				ip = create(path, T_FILE, 0, 0);
 			}
 		}
 		if(ip == 0){
+			// this means that one of the create statements failed, and the operation cannot proceed.
 			end_op();
 			return -1;
 		}
@@ -571,8 +495,7 @@ sys_open(void)
         // ip is still locked if this if gets evaluated
         if (ip->type == T_SYMLINK && !(omode & O_NOFOLLOW)){
             char name[DIRSIZ];
-            int count = 0;
-            if (follow_link(ip, name, 10) < 0){
+            if (follow_link(ip, name, symlink_depth, NULL) < 0){
                 // If the code above errors the inode is already unlocked, so uloncking it here would cause a kermel panic
                 end_op();
                 return -1;
@@ -580,6 +503,7 @@ sys_open(void)
         }
 	}
 
+	// allocate file and a corresponding descriptor as a handle to the open file
 	if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
 		if(f)
 			fileclose(f);
@@ -603,6 +527,10 @@ sys_open(void)
 	f->readable = !(omode & O_WRONLY);
 	//f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
 	return fd;
+	// returns file descriptor which despite the name may refer to directories and many other things as well
+	// The file descriptor links to an open file description, an entry in the system wide table of open files
+
+	// for more information https://www.man7.org/linux/man-pages/man2/open.2.html#DESCRIPTION
 }
 
 int
@@ -654,11 +582,26 @@ sys_chdir(void)
 		return -1;
 	}
 	ilock(ip);
-	if(ip->type != T_DIR){
+	if(ip->type != T_DIR && ip->type != T_SYMLINK){
 		iunlockput(ip);
 		end_op();
 		return -1;
 	}
+	// clean the path to be used in the follow link code.
+	memset(path, 0, strlen(path));
+																				// Defined as void pointer
+	if (follow_link(ip, path, symlink_depth, NULL) < 0){
+		// no need to unlock inode, if the function retuns error, the inode is already unlocked and put
+		end_op();
+		return -1;
+	}
+	// If function does not error it returnes locked inode
+	if (ip->type != T_DIR){
+		iunlockput(ip);
+		end_op();
+		return -1;
+	}
+	
 	iunlock(ip);
 	iput(curproc->cwd);
 	end_op();

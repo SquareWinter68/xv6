@@ -3,6 +3,7 @@
 #include "kernel/fcntl.h"
 #include "user.h"
 #include "kernel/x86.h"
+#include "kernel/fs.h"
 
 char*
 strcpy(char *s, const char *t)
@@ -131,4 +132,36 @@ memmove(void *vdst, const void *vsrc, int n)
 	while(n-- > 0)
 		*dst++ = *src++;
 	return vdst;
+}
+
+int get_symlink_data(char* path, char* destination, int passed_file_descriptor){
+    // this function will copy the data stored in the inode of the symlink to the destinaion buffer
+    //char buffer[DIRSIZ];
+    
+    // Even though the 0 file descriptor is by convention used for stdin, here it will be used
+    // treated as null, aka like it was not sent at all
+    int file_descriptor;
+    int read_sucess;
+    if (passed_file_descriptor){
+        if ((read_sucess = read(passed_file_descriptor, destination, DIRSIZ)) <= 0){
+            //fprintf(2, "symlinkinfo: cannot read %s\n", (path+2));
+            return 0;
+        }
+        return 1;
+    }
+    else {
+        if((file_descriptor = open(path, 0x004)) < 0){
+		    //fprintf(2, "symlinkinfo: cannot open %s\n", (path+2));
+		    return 0;
+	    }
+        //int read(int, void*, int);
+        // read(descriptor, buffer, bytes)
+        memset(destination, 0, DIRSIZ);
+        if ((read_sucess = read(file_descriptor, destination, DIRSIZ)) <= 0){
+            //fprintf(2, "symlinkinfo: cannot read %s\n", (path+2));
+            return 0;
+        }
+        return 1;
+    }
+    
 }

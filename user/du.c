@@ -3,7 +3,6 @@
 #include "user.h"
 #include "kernel/fs.h"
 
-int total = 0;
 
 char*
 fmtname(char *path)
@@ -24,8 +23,12 @@ fmtname(char *path)
 	return buf;
 }
 
+int read_directory_entry(char* path, struct stat* stat_struct){
+
+}
+
 void
-du(char *path)
+du(char *path, int* total_blocks)
 {
 	char buf[512], *p;
 	int file_descriptor;
@@ -53,8 +56,8 @@ du(char *path)
 	switch(stat_struct.type){
 	case T_FILE:
     // BSIZE corresponds to the block size of 512 bytes, defined in fs.h
-        total += ((stat_struct.size/BSIZE)+1);
-		printf("%s %d %d %d\n", fmtname(path), stat_struct.type, stat_struct.ino, stat_struct.block);
+        (*total_blocks) += stat_struct.block;
+		printf("%s %d\n", fmtname(buf), stat_struct.block);
 		break;
 
 	case T_DIR:
@@ -70,6 +73,7 @@ du(char *path)
 		p = buf+strlen(buf);
 		*p++ = '/';
 		while(read(file_descriptor, &directory_entry, sizeof(directory_entry)) == sizeof(directory_entry)){
+			// if the dirent points to anothet directory, the du is called once again with the path of the new directory
 			if(directory_entry.inum == 0)
 				continue;
 			memmove(p, directory_entry.name, DIRSIZ);
@@ -78,8 +82,16 @@ du(char *path)
 				printf("du: cannot stat %s\n", buf);
 				continue;
 			}
-            total += ((stat_struct.size/BSIZE)+1);
-			printf("%s %d %d %d\n", fmtname(buf), stat_struct.type, stat_struct.ino, stat_struct.block);
+			if (stat_struct.type == T_DIR && strcmp((buf+strlen(buf)-1), ".") != 0 && strcmp((buf+strlen(buf)-2), "..") != 0){
+				// ignoring . and .. directories
+				//printf("the path of the currnet dir is %s\n", buf);
+				du(buf, total_blocks);
+			}
+			if (strcmp((buf+strlen(buf)-2), "..") != 0){
+				(*total_blocks) += stat_struct.block;
+				printf("%s %d\n", fmtname(buf), stat_struct.block);
+			}
+            
 		}
 		break;
 	}
@@ -89,15 +101,17 @@ du(char *path)
 int
 main(int argc, char *argv[])
 {
+	int total = 0;
 
 	int i;
 
 	if(argc < 2){
-		du(".");
+		du(".", &total);
+		fprintf(0,"total: %d\n", total);
 		exit();
 	}
 	for(i=1; i<argc; i++)
-		du(argv[i]);
-    printf("total: %d\n", total);
+		du(argv[i], &total);
+    fprintf(0,"total: %d\n", total);
 	exit();
 }
