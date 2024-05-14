@@ -35,6 +35,7 @@ exec(char *path, char **argv)
 	if(elf.magic != ELF_MAGIC)
 		goto bad;
 
+	// each process needs to have the kernel maped in their virtual adresses, hence this is called.
 	if((pgdir = setupkvm()) == 0)
 		goto bad;
 

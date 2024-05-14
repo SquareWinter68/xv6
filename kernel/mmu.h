@@ -83,6 +83,9 @@
 
 // page directory index
 #define PDX(va)         (((uint)(va) >> PDXSHIFT) & 0x3FF)
+// 0x3FF is the bottom 10 bits of a 32 bit number aka the last 10 ones aka 00000000 00000000 00000011 11111111
+// the bitmask is used to clear all of the bits above or to the left of these 10 bits.
+// the bithshisf should have done this already
 
 // page table index
 #define PTX(va)         (((uint)(va) >> PTXSHIFT) & 0x3FF)
@@ -108,7 +111,10 @@
 #define PTE_PS          0x080   // Page Size
 
 // Address in page table or page directory entry
+
+//PTE_ADDR returns the first 20 bits of a 32 bit number
 #define PTE_ADDR(pte)   ((uint)(pte) & ~0xFFF)
+// Returns only the last 12 bits of a 32 bit number
 #define PTE_FLAGS(pte)  ((uint)(pte) &  0xFFF)
 
 #ifndef __ASSEMBLER__

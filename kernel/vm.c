@@ -8,7 +8,7 @@
 #include "elf.h"
 
 extern char data[];  // defined by kernel.ld
-pde_t *kpgdir;  // for use in scheduler()
+pde_t *kernel_page_directory;  // for use in scheduler()
 
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.
@@ -35,12 +35,23 @@ seginit(void)
 static pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
+	// This function is called from mappages, with a page directory, this function chectks if the page table in the provided page directory exists by checking the present falg at the specified memory adress
+
 	pde_t *pde;
 	pte_t *pgtab;
-
+	/*
+	Pagedir here is a page of memory alloceted by kalloc that acts as a page directory
+	it has 1024 entries of 32 bits, coresponding to 4 KiB
+	*/
 	pde = &pgdir[PDX(va)];
 	if(*pde & PTE_P){
+		// finds the page table in the page directory by indexing into the page directory
+		// if the page table is present indicated by the PTE_P flag, it puts the page table
+		// now located in the pde pointer into the pgtab pointer
+
+		// PTE_ADDR returns the first 20 bits aka the page_directory_entry -> page table entry
 		pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
+		//line over takes the physical adress from pde maps it to a virtual adress and puts it in pgtab
 	} else {
 		if(!alloc || (pgtab = (pte_t*)kalloc()) == 0)
 			return 0;
@@ -50,37 +61,46 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
 		// be further restricted by the permissions in the page table
 		// entries, if necessary.
 		*pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
+		// this just sets the newly allocated page table as the entry in the page directory.
 	}
 	return &pgtab[PTX(va)];
 }
 
 // Create PTEs for virtual addresses starting at va that refer to
-// physical addresses starting at pa. va and size might not
+// physical addresses starting at physical_adress. va and size might not
 // be page-aligned.
-static int
-mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
+int
+mappages(pde_t *pgdir, void *virtual_adress, uint size, uint physical_adress, int perm)
 {
-	char *a, *last;
-	pte_t *pte;
+	// When called by the setupkvm, a physical_adressge directory which will later be loaded in the cr3, is provided, for its entries to be filled with refrences to page tables
+	// Furthere investigation is needed to find out how other functions call it
+	
+	char *adress, *last;
+	pte_t *page_table_entry;
 
-	a = (char*)PGROUNDDOWN((uint)va);
-	last = (char*)PGROUNDDOWN(((uint)va) + size - 1);
+	// rounds down the adress so that it is page aligned
+	adress = (char*)PGROUNDDOWN((uint)virtual_adress);
+	// last is where this ends, if the adress is where it starts
+	last = (char*)PGROUNDDOWN(((uint)virtual_adress) + size - 1);
+	// this ranges from first -> last, with an aribitrary number of pages in between
 	for(;;){
-		if((pte = walkpgdir(pgdir, a, 1)) == 0)
+		if((page_table_entry = walkpgdir(pgdir, adress, 1)) == 0)
 			return -1;
-		if(*pte & PTE_P)
+		if(*page_table_entry & PTE_P)
 			panic("remap");
-		*pte = pa | perm | PTE_P;
-		if(a == last)
+		*page_table_entry = physical_adress | perm | PTE_P;
+		if(adress == last)
 			break;
-		a += PGSIZE;
-		pa += PGSIZE;
+		// since this maps the physical to virtual/linear adress, 
+		//it increments them both not to overwrite the previous enty
+		adress += PGSIZE;
+		physical_adress += PGSIZE;
 	}
 	return 0;
 }
 
 // There is one page table per process, plus one that's used when
-// a CPU is not running any process (kpgdir). The kernel uses the
+// a CPU is not running any process (kernel_page_directory). The kernel uses the
 // current process's page table during system calls and interrupts;
 // page protection bits prevent user code from using the kernel's
 // mappings.
@@ -133,6 +153,7 @@ setupkvm(void)
 			return 0;
 		}
 	return pgdir;
+	// This functoin countrary to it's appereance actually returns a page table.
 }
 
 // Allocate one page table for the machine for the kernel address
@@ -140,7 +161,9 @@ setupkvm(void)
 void
 kvmalloc(void)
 {
-	kpgdir = setupkvm();
+	// The comment above is wrong and confusing, what the commenter meant
+	// to say is That the kernel page directory is being initialized
+	kernel_page_directory = setupkvm();
 	switchkvm();
 }
 
@@ -149,7 +172,8 @@ kvmalloc(void)
 void
 switchkvm(void)
 {
-	lcr3(V2P(kpgdir));   // switch to the kernel page table
+	// loads the kernel page directory into the cr3, register
+	lcr3(V2P(kernel_page_directory));   // switch to the kernel page table
 }
 
 // Switch TSS and h/w page table to correspond to process p.

@@ -132,6 +132,18 @@ symlinkinfo(char *path)
 int
 main(int argc, char *argv[])
 {
+	int* pointer;
+	char* name = "Is the place to be";
+	int object_descriptor = shm_open(name);
+	shm_trunc(object_descriptor, 400);
+	//shm_trunc(object_descriptor, 500);
+	shm_close(object_descriptor);
+	shm_trunc(object_descriptor, 500);
+	shm_map(object_descriptor, (void **) &pointer, 0);
+	printf("the pointer turned out to be %d\n", *pointer);
+	int object_descriptor1 = shm_open(name);
+	printf("test: %d\n", object_descriptor);
+	//shm_close(object_descriptor);
 	int i;
 
 	if(argc < 2){

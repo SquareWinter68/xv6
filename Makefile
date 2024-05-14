@@ -32,6 +32,7 @@ OBJS = \
 	$K/uart.o\
 	$K/vectors.o\
 	$K/vm.o\
+	$K/shmem.o\
 
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
@@ -199,6 +200,7 @@ UPROGS=\
 	$U/_du\
 	$U/_sln\
 	$U/_symlinkinfo\
+	#$U/_shmtest\
 
 fs.img: $T/mkfs README $(UPROGS)
 	$T/mkfs fs.img README $(UPROGS)

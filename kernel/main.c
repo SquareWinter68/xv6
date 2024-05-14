@@ -5,6 +5,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "x86.h"
+#include "shmem.h"
 
 static void startothers(void);
 static void mpmain(void)  __attribute__((noreturn));
@@ -34,7 +35,10 @@ main(void)
 	startothers();   // start other processors
 	kinit2(P2V(4*1024*1024), P2V(PHYSTOP)); // must come after startothers()
 	userinit();      // first user process
+	init_shared_mem_objects(); // Initialize the shared memory objects, see shmem.c
 	mpmain();        // finish this processor's setup
+	// all initialization must go before this line mpmain();
+
 }
 
 // Other CPUs jump here from entryother.S.

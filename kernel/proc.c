@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "shmem.h"
 
 struct {
 	struct spinlock lock;
@@ -149,6 +150,9 @@ userinit(void)
 	acquire(&ptable.lock);
 
 	p->state = RUNNABLE;
+	// Strictly not needed here, but for consistnecy
+	// initialize the size of the list of shared mem objects
+	p->shared_mem_objects_size = 0;
 
 	release(&ptable.lock);
 }
@@ -216,6 +220,8 @@ fork(void)
 
 	np->state = RUNNABLE;
 
+	// Initialize the size of the shared memory objects list to 0
+	np->shared_mem_objects_size = 0;
 	release(&ptable.lock);
 
 	return pid;
@@ -286,6 +292,8 @@ wait(void)
 			havekids = 1;
 			if(p->state == ZOMBIE){
 				// Found one.
+				for (int obj = 0; obj < p->shared_mem_objects_size; obj++)
+					drop_refrence_direct(p->shared_mem_objects[obj]);
 				pid = p->pid;
 				kfree(p->kstack);
 				p->kstack = 0;
@@ -352,6 +360,7 @@ scheduler(void)
 			p->state = RUNNING;
 
 			swtch(&(c->scheduler), p->context);
+			// briefly activates the kernel code between each process, to manage interrupts and such
 			switchkvm();
 
 			// Process is done running for now.

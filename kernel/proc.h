@@ -1,6 +1,10 @@
 #ifndef PROC_H
 #define PROC_H
 
+// The number of shared memory objects a single process can have
+// a refrence to at one time
+#define SHM_OBJECTS_PER_PROC 16
+
 // Per-CPU state
 struct cpu {
 	uchar apicid;                // Local APIC ID
@@ -51,6 +55,8 @@ struct proc {
 	struct file *ofile[NOFILE];  // Open files
 	struct inode *cwd;           // Current directory
 	char name[16];               // Process name (debugging)
+	struct shared_memory_object_local* shared_mem_objects[SHM_OBJECTS_PER_PROC];
+	int shared_mem_objects_size;
 };
 
 // Process memory is laid out contiguously, low addresses first:

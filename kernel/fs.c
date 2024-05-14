@@ -290,7 +290,6 @@ ilock(struct inode *ip)
 	struct dinode *dip;
 
 	if(ip == 0 || ip->ref < 1){
-		cprintf("I caused a panic in ilock FIRST\n");
 		panic("ilock");
 	}
 	//cprintf("OVER ACQUIRE SLEEP\n");
