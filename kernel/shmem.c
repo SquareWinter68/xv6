@@ -279,5 +279,4 @@ void drop_refrence_direct(struct shared_memory_object_local* shm_obj_local){
     //release(&shm_obj->lock);
 }
 
-// fix the proc.h problem where if you pop the first elemen the pointer to the available slot just
-// decrements
+// MAN I REALLY HOPE THIS SHIT WORKS NOW
