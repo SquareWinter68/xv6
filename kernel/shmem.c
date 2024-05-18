@@ -40,7 +40,6 @@ struct shared_memory_object_local{
     int shared_mem_descriptor;
     int owner_pid;
     int flags;
-    int truncated;
     struct shared_memory_object* shared_mem_object;
     
 }process_local_shm_objects[MAX_SHM_OBJ_REFS];
@@ -77,8 +76,7 @@ void clean_allocated_mem(struct shared_memory_object* shm_obj){
 void init_process_local_shm_objs(void){
     for (int i = 0; i < MAX_SHM_OBJ_REFS; i++){
         process_local_shm_objects[i].owner_pid = process_local_shm_objects[i].shared_mem_descriptor = -1;
-        process_local_shm_objects[i].truncated = process_local_shm_objects[i].flags = 0;
-        //initlock(&process_local_shm_objects[i].lock, "local_shm_objects_lock");
+        process_local_shm_objects[i].flags = 0;
     }
 }
 
@@ -88,7 +86,7 @@ void init_shared_mem_objects(void){
         shared_memory_objects[i].id = i;
         // a lock must be initialized before it is ever used
         initlock(&shared_memory_objects[i].lock, "shm_object_lock");
-        shared_memory_objects[i].ref_count= 0;
+        shared_memory_objects[i].ref_count = 0;
         shared_memory_objects[i].allocated_pages = -1;
         memset(shared_memory_objects[i].name, 0, NAME_SZ);
     }
@@ -97,21 +95,23 @@ void init_shared_mem_objects(void){
 }
 
 // takes locked shared memory object, and cleans it.
-void clean_shared_mem_obj(struct shared_memory_object* shm_obj){
+void clean_shared_mem_obj(struct shared_memory_object* shm_obj, int direct){
     //struct shared_memory_object* shm_obj = &shared_memory_objects[index];
     // clear the name field
     memset(shm_obj->name, 0, NAME_SZ);
     // frees the allocated memory
+    
+    if (direct == 0)
+        //deallocuvm(myproc()->pgdir, uint, uint)
+
+    // might be replaced with deallocuvm
     clean_allocated_mem(shm_obj);
     // free any pages allocated by kalloc if any
-    for (int i = 0; i < shm_obj->allocated_pages; i++)
-        kfree(shm_obj->memory[i]);
-    shm_obj->allocated_pages = -1;
 }
 
 void clean_local_shared_mem_obj(struct shared_memory_object_local* shm_obj){
     shm_obj->shared_mem_descriptor = -1;
-    shm_obj->flags = shm_obj->owner_pid = shm_obj->truncated = 0;
+    shm_obj->flags = shm_obj->owner_pid = 0;
     shm_obj->shared_mem_object = 0;
 }
 // if found, returns the index of the free or specified object in the global array of 
@@ -127,7 +127,9 @@ int fecth_unused_shm_object(char* name){
         }
         
         if (firs_free < 0){
-            firs_free = i;
+            if (shared_memory_objects[i].name[0] == 0){
+                firs_free = i;
+            }
         }
         release(&shared_memory_objects[i].lock);
     }
@@ -142,20 +144,22 @@ int fecth_unused_shm_object(char* name){
     return -1; // No unused shared memory object found
 }
 
-int drop_refrence_count(struct proc* current_proc){
+int drop_refrence_count(struct proc* current_proc, int object_descriptor){
     struct shared_memory_object* shm_obj = current_proc->
-                                            shared_mem_objects[current_proc->shared_mem_objects_size-1]->
+                                            shared_mem_objects[object_descriptor]->
                                             shared_mem_object;
     // since the process, droped the memory object, the list shrank thusly
     current_proc->shared_mem_objects_size --;
+    current_proc->shm_occupied[object_descriptor] = 0;
     local_shm_obj_arr_index --;
     acquire(&shm_obj->lock);
     // no need for size -1, since it was decremented above
-    clean_local_shared_mem_obj(current_proc->shared_mem_objects[current_proc->shared_mem_objects_size]);
+     
+    clean_local_shared_mem_obj(current_proc->shared_mem_objects[object_descriptor]);
     if (shm_obj->ref_count == 1){
         shm_obj->ref_count --;
         cprintf("entered cleaning section\n");
-        clean_shared_mem_obj(shm_obj);
+        clean_shared_mem_obj(shm_obj, 0);
         release(&shm_obj->lock);
         cprintf("it seems i workded correctly\n");
         return 1;
@@ -172,18 +176,28 @@ int drop_refrence_count(struct proc* current_proc){
 }
 // returns the index in the processes local shared mem objects table
 int check_if_exists(char* name, struct proc* current_proc){
-    if (current_proc->shared_mem_objects_size == 0)
-        return -1;
-    for (int i = 0; i < current_proc->shared_mem_objects_size; i ++){
-        struct shared_memory_object* shm_obj = current_proc->shared_mem_objects[i]->shared_mem_object;
-        acquire(&shm_obj->lock);
-        if (strcmp(shm_obj->name, name) == 0){
+    for (int i = 0; i < 16; i ++){
+        if (current_proc->shm_occupied[i]){
+            struct shared_memory_object* shm_obj = current_proc->shared_mem_objects[i]->shared_mem_object;
+            acquire(&shm_obj->lock);
+            if (strcmp(shm_obj->name, name) == 0){
+                release(&shm_obj->lock);
+                return i;
+            }
             release(&shm_obj->lock);
-            return i;
         }
-        release(&shm_obj->lock);
     }
     return -1;
+}
+
+int find_free_slot(struct proc* current_process){
+    for (int i = 0; i < 16; i ++){
+        if (current_process->shm_occupied[i] == 0){
+            current_process->shm_occupied[i] = 1;
+            return i;
+        }
+    }
+    return  -1;
 }
 
 int shm_open(char* name){
@@ -194,6 +208,7 @@ int shm_open(char* name){
     int exists = check_if_exists(name, current_process);
     if (exists < 0){
         if (current_process->shared_mem_objects_size == LOCAL_NUMBER_OF_SHM_OBJ){
+            cprintf("too many objects nigga\n");
             return -1;
         }
         int object_descriptor = fecth_unused_shm_object(name);
@@ -205,109 +220,64 @@ int shm_open(char* name){
         struct shared_memory_object_local* local_obj = &process_local_shm_objects[local_shm_obj_arr_index++];
         local_obj->owner_pid = current_process->pid;
         local_obj->shared_mem_object = &shared_memory_objects[object_descriptor];
-        local_obj->shared_mem_descriptor = current_process->shared_mem_objects_size;
+        local_obj->shared_mem_descriptor = find_free_slot(current_process);
         
-        current_process->shared_mem_objects[current_process->shared_mem_objects_size] = local_obj;
+        current_process->shared_mem_objects[local_obj->shared_mem_descriptor] = local_obj;
         
-        cprintf("Name:%s, ref:%d\n", current_process->
-        shared_mem_objects[current_process->shared_mem_objects_size]->shared_mem_object->name,
-        current_process->shared_mem_objects[current_process->shared_mem_objects_size]->shared_mem_object->ref_count);
-        
+        cprintf("Name:%s, ref:%d od:%d\n", current_process->
+        shared_mem_objects[local_obj->shared_mem_descriptor]->shared_mem_object->name,
+        current_process->shared_mem_objects[local_obj->shared_mem_descriptor]->shared_mem_object->ref_count, local_obj->shared_mem_descriptor);
+        current_process->shared_mem_objects_size++;
         release(&shared_memory_objects[object_descriptor].lock);
-        return current_process->shared_mem_objects_size++;
+        return local_obj->shared_mem_descriptor;
     }
     
-
+    cprintf("i already existed \n");
     acquire(&current_process->shared_mem_objects[exists]->shared_mem_object->lock);
-    cprintf("Name:%s, ref:%d\n", current_process->
+    cprintf("Name:%s, ref:%d od:%d\n", current_process->
         shared_mem_objects[exists]->shared_mem_object->name,
-        current_process->shared_mem_objects[exists]->shared_mem_object->ref_count);   
+        current_process->shared_mem_objects[exists]->shared_mem_object->ref_count, exists);   
     release(&current_process->shared_mem_objects[exists]->shared_mem_object->lock);
-    return exists; //current_process->shared_mem_objects_size++;
+    return exists; 
 }
 
 int shm_trunc(int object_descriptor, int size){
-    cprintf("entered trunc\n");
-    struct proc* current_process = myproc();
-    if (size <= 0)
-        return -1;
-    if (object_descriptor >= current_process->shared_mem_objects_size)
-        return -1;
-    if (current_process->shared_mem_objects[object_descriptor]->truncated == 1)
-        return -1;
-    struct shared_memory_object* shm_obj = current_process->shared_mem_objects[object_descriptor]->shared_mem_object;
-    int oldsz, newsz, adress;
-    char* memory;
-    acquire(&shm_obj->lock);
-    oldsz = current_process->sz;
-    newsz = oldsz + size;
-    // round up to the top of the current page
-    // since values have to be page aligned
-    adress = PGROUNDUP(oldsz);
-    for (; adress < newsz; adress += PGSIZE){
-        memory = kalloc();
-        if (memory == 0){
-            cprintf("allocator out of memory");
-            // cleanup
-            clean_allocated_mem(shm_obj);
-            return -1;
-        }
-        cprintf("allocated one page of memory\n");
-        shm_obj->allocated_pages ++;
-        shm_obj->memory[shm_obj->allocated_pages] = memory;
-    }
-    // change the size of the new process
-    current_process->sz = newsz;
-    current_process->shared_mem_objects[object_descriptor]->truncated = 1;
-    release(&shm_obj->lock);
-    cprintf("if this does not show, I errored\n");
-    return newsz;
+
 }
 
 int shm_map(int object_descriptor, void **virtual_adress, int flags){
-    struct proc* current_process = myproc();
-    struct shared_memory_object* shm_obj = current_process->shared_mem_objects[object_descriptor]->shared_mem_object;
-    if (object_descriptor >= current_process->shared_mem_objects_size)
-        return -1;
-    cprintf("will this work\n");
-    int** va = (int**) virtual_adress;
-    **va = 42;
-    int adress = PGROUNDDOWN(current_process->sz);
-    acquire(&shm_obj->lock);
-    for (int i = 0; i <= shm_obj->allocated_pages; i ++){
-        if (mappages(current_process->pgdir, (char*)adress, PGSIZE, V2P(shm_obj->memory[i]), flags) < 0){
-            // handle error
-            //deallocuvm(current_process->pgdir, , oldsz);
-        }
-    }
-    release(&shm_obj->lock);
-    return 0;
+
 }
 
 
 int shm_close(int object_descriptor){
     struct proc* current_process = myproc();
-    if (object_descriptor >= current_process->shared_mem_objects_size)
+    if (object_descriptor >= current_process->shared_mem_objects_size || object_descriptor < 0)
         return -1;
-    if (drop_refrence_count(current_process) < 0)
+    if (drop_refrence_count(current_process, object_descriptor) < 0)
         return -1;
     return 0;
 }
 
 void drop_refrence_direct(struct shared_memory_object_local* shm_obj_local){
     struct shared_memory_object* shm_obj = shm_obj_local->shared_mem_object;
-    acquire(&shm_obj->lock);
+    // already holding ptable lock, no need to lock here
+   // acquire(&shm_obj->lock);
+    cprintf("hello from direct\n");
     clean_local_shared_mem_obj(shm_obj_local);
     if (shm_obj->ref_count == 1){
         shm_obj->ref_count --;
-        clean_shared_mem_obj(shm_obj);
-        release(&shm_obj->lock);
+        clean_shared_mem_obj(shm_obj, 1);
+        //release(&shm_obj->lock);
         return;
     }
     if (shm_obj->ref_count != 0){
         shm_obj->ref_count --;
-        release(&shm_obj->lock);
+        //release(&shm_obj->lock);
         return;
     }
-    release(&shm_obj->lock);
+    //release(&shm_obj->lock);
 }
+
+// fix the proc.h problem where if you pop the first elemen the pointer to the available slot just
+// decrements

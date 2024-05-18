@@ -222,6 +222,9 @@ fork(void)
 
 	// Initialize the size of the shared memory objects list to 0
 	np->shared_mem_objects_size = 0;
+	for (int i = 0; i < 16; i++){
+		np->shm_occupied[i] = 0;
+	}
 	release(&ptable.lock);
 
 	return pid;
@@ -292,8 +295,12 @@ wait(void)
 			havekids = 1;
 			if(p->state == ZOMBIE){
 				// Found one.
-				for (int obj = 0; obj < p->shared_mem_objects_size; obj++)
-					drop_refrence_direct(p->shared_mem_objects[obj]);
+				for (int obj = 0; obj < 16; obj++){
+					if (p->shm_occupied[obj]){
+						cprintf("id:%d\n", obj);
+						drop_refrence_direct(p->shared_mem_objects[obj]);
+					}
+				}
 				pid = p->pid;
 				kfree(p->kstack);
 				p->kstack = 0;
