@@ -246,16 +246,16 @@ void test_fork_persistancy(){
 	int size = shm_trunc(fd, 400);
 	int *p;
 	shm_map(fd, (void **) &p, O_RDWR);
-	p[0] = p[30] = 5;
+	//p[0] = p[30] = 5;
 	printf("I am Adam %d\n", p[1]);
 	if (fork()){
 		wait();
 		printf("And i should have run second\n");
-		printf("DUN DUN DUN... %d\n", p[0]);
+		//printf("DUN DUN DUN... %d\n", p[0]);
 	}
 	else {
-		printf("I should have run first %d\n", p);
-		printf("and result is %d\n", p[0]);
+		//printf("I should have run first %d\n", p);
+		//printf("and result is %d\n", p[0]);
 		shm_close(0);
 		//p[2] = 0;
 	}
@@ -266,8 +266,8 @@ main(int argc, char *argv[])
 {
 	printf("note that errors could happen as a result of prior errors\n"
 	       "as a result, you should inspect errors in sequence\n");
-	test_fork_persistancy();
-	// if(test1()) goto ex;
+	//test_fork_persistancy();
+	if(test1()) goto ex;
 	// if(test2()) goto ex;
 	// if(test3()) goto ex;
 	// if(test4()) goto ex;

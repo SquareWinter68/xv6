@@ -17,6 +17,6 @@ int shm_map(int object_descriptor, void **virtual_adress, int flags);
 // clears the the object if ref reaches 0
 int shm_close(int object_descriptor);
 
-void drop_refrence_direct(struct shared_memory_object_local* shm_obj, struct proc* process, int object_descriptor);
+void shm_close_direct(int object_descriptor, struct proc* process);
 void copy_shm_vm(pde_t* pgdir, struct proc* child);
 #endif

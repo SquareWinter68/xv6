@@ -203,6 +203,11 @@ fork(void)
 	np->sz = curproc->sz;
 	np->parent = curproc;
 	*np->tf = *curproc->tf;
+	for (int i = 0; i < 16; i ++){
+		np->shm_occupied[i] = curproc->shm_occupied[i];
+		np->shared_mem_objects[i] = curproc->shared_mem_objects[i];
+	}
+	np->shared_mem_objects_size = curproc->shared_mem_objects_size;
 
 	copy_shm_vm(curproc->pgdir, np);
 	// Clear %eax so that fork returns 0 in the child.
@@ -221,12 +226,6 @@ fork(void)
 	acquire(&ptable.lock);
 
 	np->state = RUNNABLE;
-
-	// Initialize the size of the shared memory objects list to 0
-	np->shared_mem_objects_size = 0;
-	for (int i = 0; i < 16; i++){
-		np->shm_occupied[i] = 0;
-	}
 	release(&ptable.lock);
 	return pid;
 }
@@ -299,7 +298,7 @@ wait(void)
 				for (int obj = 0; obj < 16; obj++){
 					if (p->shm_occupied[obj]){
 						cprintf("id:%d\n", obj);
-						drop_refrence_direct(p->shared_mem_objects[obj], p, obj);
+						//ddrop_refrence_direct(p->shared_mem_objects[obj], p, obj);
 					}
 				}
 				pid = p->pid;

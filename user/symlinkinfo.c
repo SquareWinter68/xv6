@@ -168,6 +168,8 @@ main(int argc, char *argv[])
 	shm_open(name13);
 	shm_open(name14);
 	shm_open(name15);
+	shm_close(15);
+	shm_open(name16);
 	shm_trunc(0, 4097);
 	shm_trunc(0, 500);
 	int* addr;
