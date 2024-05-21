@@ -298,7 +298,7 @@ wait(void)
 				for (int obj = 0; obj < 16; obj++){
 					if (p->shm_occupied[obj]){
 						cprintf("id:%d\n", obj);
-						//ddrop_refrence_direct(p->shared_mem_objects[obj], p, obj);
+						shm_close_direct(obj, p);
 					}
 				}
 				pid = p->pid;
