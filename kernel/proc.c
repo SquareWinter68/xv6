@@ -204,6 +204,7 @@ fork(void)
 	np->parent = curproc;
 	*np->tf = *curproc->tf;
 
+	copy_shm_vm(curproc->pgdir, np);
 	// Clear %eax so that fork returns 0 in the child.
 	np->tf->eax = 0;
 
@@ -215,6 +216,7 @@ fork(void)
 	safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
 	pid = np->pid;
+	
 
 	acquire(&ptable.lock);
 
@@ -226,7 +228,6 @@ fork(void)
 		np->shm_occupied[i] = 0;
 	}
 	release(&ptable.lock);
-
 	return pid;
 }
 
@@ -298,7 +299,7 @@ wait(void)
 				for (int obj = 0; obj < 16; obj++){
 					if (p->shm_occupied[obj]){
 						cprintf("id:%d\n", obj);
-						drop_refrence_direct(p->shared_mem_objects[obj]);
+						drop_refrence_direct(p->shared_mem_objects[obj], p, obj);
 					}
 				}
 				pid = p->pid;

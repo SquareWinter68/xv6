@@ -6,6 +6,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "elf.h"
+#include "shmem.h"
 
 extern char data[];  // defined by kernel.ld
 pde_t *kernel_page_directory;  // for use in scheduler()
@@ -32,7 +33,7 @@ seginit(void)
 // Return the address of the PTE in page table pgdir
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page table pages.
-static pte_t *
+pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
 	// This function is called from mappages, with a page directory, this function chectks if the page table in the provided page directory exists by checking the present falg at the specified memory adress
@@ -248,7 +249,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 	char *mem;
 	uint a;
 
-	if(newsz >= KERNBASE)
+	if(newsz >= VIRT_SHM_MEM)
 		return 0;
 	if(newsz < oldsz)
 		return oldsz;

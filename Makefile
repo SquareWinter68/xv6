@@ -200,7 +200,7 @@ UPROGS=\
 	$U/_du\
 	$U/_sln\
 	$U/_symlinkinfo\
-	#$U/_shmtest\
+	$U/_shmtest\
 
 fs.img: $T/mkfs README $(UPROGS)
 	$T/mkfs fs.img README $(UPROGS)

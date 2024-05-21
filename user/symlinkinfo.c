@@ -7,6 +7,7 @@
 
 #include "kernel/types.h"
 #include "kernel/stat.h"
+#include "kernel/fcntl.h"
 #include "user.h"
 #include "kernel/fs.h"
 
@@ -167,15 +168,13 @@ main(int argc, char *argv[])
 	shm_open(name13);
 	shm_open(name14);
 	shm_open(name15);
-	shm_close(0);
-	shm_close(1);
-	shm_close(2);
-	shm_close(3);
-	shm_close(4);
-	shm_close(5);
-	shm_close(6);
-	shm_close(7);
-	
+	shm_trunc(0, 4097);
+	shm_trunc(0, 500);
+	int* addr;
+	shm_map(0, (void **) &addr, O_RDWR);
+	printf("DID WE MAKE IT ? %d\n", addr[0]);
+	//shm_close(0);
+
 	printf("===========================================\n===========================================\n");
 	//shm_trunc(object_descriptor, 400);
 	//shm_trunc(object_descriptor, 500);

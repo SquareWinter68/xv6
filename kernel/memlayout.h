@@ -17,5 +17,11 @@
 #define V2P_WO(x) ((x) - KERNBASE)    // same as V2P, but without casts
 #define P2V_WO(x) ((x) + KERNBASE)    // same as P2V, but without casts
 
-
+//==============================ADDED MACROS==============================
+#define PAGESIZE          4096    // bytes mapped by a page
+#define MAX_PAGES 32
+#define SHM_OBJ_MAX_SIZE MAX_PAGES * PAGESIZE
+#define LOCAL_NUMBER_OF_SHM_OBJ 16
+#define VIRT_SHM_MEM KERNBASE - (SHM_OBJ_MAX_SIZE * LOCAL_NUMBER_OF_SHM_OBJ)
+//==============================ADDED MACROS==============================
 #endif
