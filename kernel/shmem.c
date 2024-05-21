@@ -410,4 +410,4 @@ void drop_refrence_direct(struct shared_memory_object_local* shm_obj_local, stru
     //release(&shm_obj->lock);
 }
 
-// MAN I REALLY HOPE THIS SHIT WORKS NOW
+// unclutter
