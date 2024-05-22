@@ -72,14 +72,12 @@ int test2(void)
 
 	if(fork())
 	{
-		printf("failed, cuz fork has to copy the user space i guess 1\n");
 		p[0] = 42;
 		shm_close(fd);
 		wait();
 	}
 	else
 	{
-		printf("failed, cuz fork has to copy the user space i guess 2\n");
 		p[1] = 42;
 		shm_close(fd);
 	}
@@ -131,7 +129,7 @@ int test4(void)
 	int size = shm_trunc(fd, 400);
 	int *p;
 	shm_map(fd, (void **) &p, O_RDWR);
-	close(open("/shm_test4", O_CREATE | O_WRONLY));
+	//close(open("/shm_test4", O_CREATE | O_WRONLY));
 	if((pid = fork()))
 	{
 		wait();
@@ -269,7 +267,7 @@ main(int argc, char *argv[])
 	//test_fork_persistancy();
 	if(test1()) goto ex;
 	// if(test2()) goto ex;
-	// if(test3()) goto ex;
+	if(test3()) goto ex;
 	// if(test4()) goto ex;
 	// if(test5()) goto ex;
 	// if(test6()) goto ex;

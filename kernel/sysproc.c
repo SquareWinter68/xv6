@@ -112,7 +112,6 @@ int sys_shm_trunc(void){
 }
 
 int sys_shm_map(void){
-	cprintf("entered shm map\n");
 	int object_descriptor, virtual_adress, flags;
 	if (argint(0, &object_descriptor) < 0 ||
 		argint(1, &virtual_adress) < 0 ||

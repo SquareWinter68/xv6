@@ -203,13 +203,24 @@ fork(void)
 	np->sz = curproc->sz;
 	np->parent = curproc;
 	*np->tf = *curproc->tf;
-	for (int i = 0; i < 16; i ++){
-		np->shm_occupied[i] = curproc->shm_occupied[i];
-		np->shared_mem_objects[i] = curproc->shared_mem_objects[i];
-	}
+	// for (int i = 0; i < 16; i ++){
+	// 	np->shm_occupied[i] = curproc->shm_occupied[i];
+	// 	np->shared_mem_objects[i] = curproc->shared_mem_objects[i];
+	// }
+	fork_proc_clone(curproc, np);
 	np->shared_mem_objects_size = curproc->shared_mem_objects_size;
 
-	copy_shm_vm(curproc->pgdir, np);
+	copy_shm_vm(curproc, np);
+	// for (int i = 0; i < 16; i ++){
+	// 	int parrent = curproc->shm_occupied[i];
+	// 	int child = np->shm_occupied[i];
+	// 	cprintf("PROC.c: parrent: %d\nchild: %d\n", parrent, child);
+	// }
+	// for (int i = 0; i < 16; i ++){
+	// 	struct shared_memory_object_local* parent = curproc->shared_mem_objects[i];
+	// 	struct shared_memory_object_local* child = np->shared_mem_objects[i];
+	// 	cprintf("PROC.c: parrent: %d\nchild: %d\n", parent, child);
+	// }
 	// Clear %eax so that fork returns 0 in the child.
 	np->tf->eax = 0;
 
@@ -297,7 +308,7 @@ wait(void)
 				// Found one.
 				for (int obj = 0; obj < 16; obj++){
 					if (p->shm_occupied[obj]){
-						cprintf("id:%d\n", obj);
+						//cprintf("id:%d\n", obj);
 						shm_close_direct(obj, p);
 					}
 				}

@@ -18,5 +18,6 @@ int shm_map(int object_descriptor, void **virtual_adress, int flags);
 int shm_close(int object_descriptor);
 
 void shm_close_direct(int object_descriptor, struct proc* process);
-void copy_shm_vm(pde_t* pgdir, struct proc* child);
+void copy_shm_vm(struct proc* parent, struct proc* child);
+void fork_proc_clone(struct proc* parrent, struct proc* child);
 #endif
