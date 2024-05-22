@@ -160,7 +160,8 @@ void unmap(pde_t* pgdir, uint from, uint to){
         page_table_entry =  walkpgdir(pgdir, (char*)adress, 0);
         if (*page_table_entry & PTE_P){
             cprintf("UNMAPED ONE PAGE\n");
-            *page_table_entry = 0;
+            *page_table_entry &= ~PTE_P;
+            *page_table_entry &= ~PTE_U;
         }
     }
 }
