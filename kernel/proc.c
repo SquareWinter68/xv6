@@ -222,13 +222,6 @@ fork(void)
 	np->sz = curproc->sz;
 	np->parent = curproc;
 	*np->tf = *curproc->tf;
-	for (int i = 0; i < 16; i ++){
-		np->shared_mem_objects[i].shared_mem_object = curproc->shared_mem_objects[i].shared_mem_object;
-		np->shared_mem_objects[i].flags = curproc->shared_mem_objects[i].flags;
-		np->shared_mem_objects[i].virtual_adress = curproc->shared_mem_objects[i].virtual_adress;
-		np->shared_mem_objects[i].shared_mem_object->ref_count ++;
-	}
-	copy_shm_vm(curproc, np);
 	// Clear %eax so that fork returns 0 in the child.
 	np->tf->eax = 0;
 
@@ -240,7 +233,13 @@ fork(void)
 	safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
 	pid = np->pid;
-	
+	for (int i = 0; i < 16; i ++){
+		np->shared_mem_objects[i].shared_mem_object = curproc->shared_mem_objects[i].shared_mem_object;
+		np->shared_mem_objects[i].flags = curproc->shared_mem_objects[i].flags;
+		np->shared_mem_objects[i].virtual_adress = curproc->shared_mem_objects[i].virtual_adress;
+		np->shared_mem_objects[i].shared_mem_object->ref_count ++;
+	}
+	copy_shm_vm(curproc, np);
 
 	acquire(&ptable.lock);
 
@@ -319,10 +318,10 @@ wait(void)
 				for (int obj = 0; obj < 16; obj++){
 					if (p->shared_mem_objects[obj].shared_mem_object != 0){
 						//cprintf("id:%d\n", obj);
-						//shm_close_direct(obj, p);
+						shm_close_direct(obj, p);
 						struct shared_memory_object** shared_mem_obj_glob = &p->shared_mem_objects[obj].shared_mem_object;
 						p->shared_mem_objects[obj].flags = 0;
-						(*shared_mem_obj_glob)->ref_count --;
+						//(*shared_mem_obj_glob)->ref_count --;
 						
 						uint oldsz = PGROUNDUP(VIRT_SHM_MEM) + (obj * SHM_OBJ_MAX_SIZE);
         				uint newsz = (*shared_mem_obj_glob)->size;
@@ -332,7 +331,7 @@ wait(void)
 						
     					    page_table_entry =  walkpgdir(p->pgdir, (char*)adress, 0);
     					    if (*page_table_entry & PTE_P){
-    					        //cprintf("UNMAPED ONE PAGE\n");
+    					        cprintf("UNMAPED ONE PAGE\n");
     					        *page_table_entry &= ~PTE_P;
     					        *page_table_entry &= ~PTE_U;
     					    }
