@@ -1,6 +1,13 @@
 #ifndef SHARED_MEM_MODULE
 #define SHARED_MEM_MODULE
-
+#include "types.h"
+#include "defs.h"
+#include "param.h"
+#include "memlayout.h"
+#include "mmu.h"
+#include "x86.h"
+#include "proc.h"
+#include "spinlock.h"
 void init_shared_mem_objects(void);
 // returns the object despriptor of the newly opened shm
 // object
@@ -18,6 +25,6 @@ int shm_map(int object_descriptor, void **virtual_adress, int flags);
 int shm_close(int object_descriptor);
 
 void shm_close_direct(int object_descriptor, struct proc* process);
-void copy_shm_vm(struct proc* parent, struct proc* child);
-void fork_proc_clone(struct proc* parrent, struct proc* child);
+//void copy_shm_vm(struct proc* parent, struct proc* child);
+// void fork_proc_clone(struct proc* parrent, struct proc* child);
 #endif

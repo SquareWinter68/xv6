@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "shmem.h"
+#include "vm.h"
 
 struct {
 	struct spinlock lock;
@@ -152,8 +153,10 @@ userinit(void)
 	p->state = RUNNABLE;
 	// Strictly not needed here, but for consistnecy
 	// initialize the size of the list of shared mem objects
-	p->shared_mem_objects_size = 0;
-
+	for (int i = 0; i < 16; i++){
+		p->shared_mem_objects[i].virtual_adress = p->shared_mem_objects[i].flags = 0;
+		p->shared_mem_objects[i].shared_mem_object = 0;
+	}
 	release(&ptable.lock);
 }
 
@@ -176,6 +179,22 @@ growproc(int n)
 	curproc->sz = sz;
 	switchuvm(curproc);
 	return 0;
+}
+
+void copy_shm_vm(struct proc* parent, struct proc* child){
+    //cprintf("ENTERED COPY SHM_VM\n");
+    pte_t* pte;
+    uint start, stop;
+    start = VIRT_SHM_MEM;
+    stop = KERNBASE;
+    for (; start < stop; start += PGSIZE){
+        pte = walkpgdir(parent->pgdir, (void*)start, 0);
+        if (pte && (*pte & PTE_P)){
+            uint physical_adress = PTE_ADDR(*pte);
+            int flags = PTE_FLAGS(*pte);
+            mappages(child->pgdir, (void*)start, PGSIZE, physical_adress, flags | PTE_U);
+        }
+    }
 }
 
 // Create a new process copying p as the parent.
@@ -203,24 +222,13 @@ fork(void)
 	np->sz = curproc->sz;
 	np->parent = curproc;
 	*np->tf = *curproc->tf;
-	// for (int i = 0; i < 16; i ++){
-	// 	np->shm_occupied[i] = curproc->shm_occupied[i];
-	// 	np->shared_mem_objects[i] = curproc->shared_mem_objects[i];
-	// }
-	fork_proc_clone(curproc, np);
-	np->shared_mem_objects_size = curproc->shared_mem_objects_size;
-
+	for (int i = 0; i < 16; i ++){
+		np->shared_mem_objects[i].shared_mem_object = curproc->shared_mem_objects[i].shared_mem_object;
+		np->shared_mem_objects[i].flags = curproc->shared_mem_objects[i].flags;
+		np->shared_mem_objects[i].virtual_adress = curproc->shared_mem_objects[i].virtual_adress;
+		np->shared_mem_objects[i].shared_mem_object->ref_count ++;
+	}
 	copy_shm_vm(curproc, np);
-	// for (int i = 0; i < 16; i ++){
-	// 	int parrent = curproc->shm_occupied[i];
-	// 	int child = np->shm_occupied[i];
-	// 	cprintf("PROC.c: parrent: %d\nchild: %d\n", parrent, child);
-	// }
-	// for (int i = 0; i < 16; i ++){
-	// 	struct shared_memory_object_local* parent = curproc->shared_mem_objects[i];
-	// 	struct shared_memory_object_local* child = np->shared_mem_objects[i];
-	// 	cprintf("PROC.c: parrent: %d\nchild: %d\n", parent, child);
-	// }
 	// Clear %eax so that fork returns 0 in the child.
 	np->tf->eax = 0;
 
@@ -287,6 +295,8 @@ exit(void)
 	panic("zombie exit");
 }
 
+
+
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int
@@ -307,9 +317,37 @@ wait(void)
 			if(p->state == ZOMBIE){
 				// Found one.
 				for (int obj = 0; obj < 16; obj++){
-					if (p->shm_occupied[obj]){
+					if (p->shared_mem_objects[obj].shared_mem_object != 0){
 						//cprintf("id:%d\n", obj);
-						shm_close_direct(obj, p);
+						//shm_close_direct(obj, p);
+						struct shared_memory_object** shared_mem_obj_glob = &p->shared_mem_objects[obj].shared_mem_object;
+						p->shared_mem_objects[obj].flags = 0;
+						(*shared_mem_obj_glob)->ref_count --;
+						
+						uint oldsz = PGROUNDUP(VIRT_SHM_MEM) + (obj * SHM_OBJ_MAX_SIZE);
+        				uint newsz = (*shared_mem_obj_glob)->size;
+						pte_t* page_table_entry;
+    					uint adress = PGROUNDUP(oldsz);
+    					for (; adress < newsz; adress += PGSIZE){
+						
+    					    page_table_entry =  walkpgdir(p->pgdir, (char*)adress, 0);
+    					    if (*page_table_entry & PTE_P){
+    					        //cprintf("UNMAPED ONE PAGE\n");
+    					        *page_table_entry &= ~PTE_P;
+    					        *page_table_entry &= ~PTE_U;
+    					    }
+    					}
+
+						if ((*shared_mem_obj_glob)->ref_count == 0){
+							for (int i = 0; i <= (*shared_mem_obj_glob)->allocated_pages; i ++){
+    						    kfree((*shared_mem_obj_glob)->memory[i]);
+    						}
+							(*shared_mem_obj_glob)->allocated_pages = -1;
+							(*shared_mem_obj_glob)->size = 0; 
+						}
+						memset((*shared_mem_obj_glob)->name, 0, 14);
+						p->shared_mem_objects[obj].virtual_adress = 0;
+						p->shared_mem_objects[obj].shared_mem_object = 0;
 					}
 				}
 				pid = p->pid;

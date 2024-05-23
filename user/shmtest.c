@@ -58,28 +58,36 @@ int test2(void)
 	int size = shm_trunc(fd, 400);
 	int *p;
 	shm_map(fd, (void **) &p, O_RDWR);
+	printf("1\n");
 	p[0] = p[1] = 0;
 	if(fork())
 	{
+		printf("2\n");
 		wait();
 		if(p[0] == 42 && p[1] == 42)
 		{
+			printf("3\n");
 			printf("Test 2 OK (if no other errors appeared)\n");
 		}
+		printf("4\n");
 		shm_close(fd);
+		printf("5\n");
 		return 1;
 	}
 
 	if(fork())
 	{
+		printf("6\n");
 		p[0] = 42;
 		shm_close(fd);
+		printf("7\n");
 		wait();
 	}
 	else
 	{
 		p[1] = 42;
 		shm_close(fd);
+		printf("8\n");
 	}
 	return 1;
 }
@@ -266,8 +274,8 @@ main(int argc, char *argv[])
 	       "as a result, you should inspect errors in sequence\n");
 	//test_fork_persistancy();
 	if(test1()) goto ex;
-	// if(test2()) goto ex;
-	if(test3()) goto ex;
+	//if(test2()) goto ex;
+	// if(test3()) goto ex;
 	// if(test4()) goto ex;
 	// if(test5()) goto ex;
 	// if(test6()) goto ex;

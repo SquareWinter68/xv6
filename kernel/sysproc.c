@@ -97,7 +97,8 @@ int sys_shm_open(void){
 	//pointer to a string
 	if(argstr(0, &name) < 0)
 		return -1;
-
+	if (name[0] == 0)
+        return -1;
 	
 	return shm_open(name);
 }

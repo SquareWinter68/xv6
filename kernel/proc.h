@@ -1,5 +1,6 @@
 #ifndef PROC_H
 #define PROC_H
+#include "shmem_structs.h"
 
 // The number of shared memory objects a single process can have
 // a refrence to at one time
@@ -55,9 +56,8 @@ struct proc {
 	struct file *ofile[NOFILE];  // Open files
 	struct inode *cwd;           // Current directory
 	char name[16];               // Process name (debugging)
-	int shm_occupied[SHM_OBJECTS_PER_PROC];
-	struct shared_memory_object_local* shared_mem_objects[SHM_OBJECTS_PER_PROC];
-	int shared_mem_objects_size;
+	//int shm_occupied[SHM_OBJECTS_PER_PROC];
+	struct shared_memory_object_local shared_mem_objects[SHM_OBJECTS_PER_PROC];
 };
 
 // Process memory is laid out contiguously, low addresses first:
