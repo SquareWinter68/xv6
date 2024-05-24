@@ -111,14 +111,15 @@ int edit_shm_obj(int arr_index, char* name, int exist){
 void unmap(pde_t* pgdir, uint from, uint to){
    // cprintf("Unmap got called \n");
     pte_t* page_table_entry;
-    uint adress = PGROUNDUP(from);
+    uint adress = PGROUNDDOWN(from);
     for (; adress < to; adress += PGSIZE){
         
         page_table_entry =  walkpgdir(pgdir, (char*)adress, 0);
         if (*page_table_entry & PTE_P){
             //cprintf("UNMAPED ONE PAGE\n");
-            *page_table_entry &= ~PTE_P;
-            *page_table_entry &= ~PTE_U;
+            // *page_table_entry &= ~PTE_P;
+            // *page_table_entry &= ~PTE_U;
+            *page_table_entry = 0;
         }
     }
 }
@@ -133,9 +134,11 @@ void clean_shared_mem_obj(struct shared_memory_object* shm_obj){
     shm_obj->ref_count = shm_obj->size = 0;
     memset(shm_obj->name, 0, NAME_SZ);
 }
-void clean_local_shared_mem_obj(struct shared_memory_object_local* shm_obj_local){
+void clean_local_shared_mem_obj(struct shared_memory_object_local* shm_obj_local, int object_descriptor){
+    struct shared_memory_object** shared_mem_obj = &myproc()->shared_mem_objects[object_descriptor].shared_mem_object;
     shm_obj_local->virtual_adress = shm_obj_local->flags = 0;
     shm_obj_local->shared_mem_object = 0;
+    (*shared_mem_obj) = 0;
 }
 int shm_open(char* name){
     struct proc* current_proc = myproc();
@@ -166,7 +169,7 @@ int shm_close_logic(int object_descriptor, struct proc* current_process){
     if (current_proc->shared_mem_objects[object_descriptor].virtual_adress){
         uint oldsz, newsz;
         oldsz = PGROUNDUP(VIRT_SHM_MEM) + (object_descriptor * SHM_OBJ_MAX_SIZE);
-        newsz = (*shared_mem_obj_glob)->size;
+        newsz = oldsz + (*shared_mem_obj_glob)->size;
         //cprintf("UNMAP GOT CALLED\n");
         unmap(current_proc->pgdir, oldsz, newsz);
     }
@@ -176,10 +179,11 @@ int shm_close_logic(int object_descriptor, struct proc* current_process){
         clean_shm_mem1((*shared_mem_obj_glob));
         release(&(*shared_mem_obj_glob)->lock);
         clean_shared_mem_obj((*shared_mem_obj_glob));
+        clean_local_shared_mem_obj(&current_proc->shared_mem_objects[object_descriptor], object_descriptor);
         return 1;
     }
     release(&(*shared_mem_obj_glob)->lock);
-    clean_local_shared_mem_obj(&current_proc->shared_mem_objects[object_descriptor]);
+    clean_local_shared_mem_obj(&current_proc->shared_mem_objects[object_descriptor], object_descriptor);
     return 1;
 }
 int shm_close(int object_descriptor){
@@ -245,5 +249,6 @@ int shm_map(int object_descriptor, void** virtual_adress, int flags){
     }
     *virtual_adress = (void*) persistent_address;
     local_shm_obj->virtual_adress = persistent_address;
+    local_shm_obj->flags = flags;
     return 0;
 }

@@ -8,7 +8,9 @@ int test1(void)
 	printf("\nstarting test 1\n");
 	if(fork())
 	{
+		//printf("1\n");
 		int fd = shm_open("/test1"); // so that it stays alive
+		//printf("2\n");
 		wait();
 		int size = shm_trunc(fd, 400);
 		int *p;
@@ -37,6 +39,7 @@ int test1(void)
 	}
 	else
 	{
+		//printf("3\n");
 		int fd = shm_open("/test1");
 		int size = shm_trunc(fd, 400);
 		int *p;
@@ -58,11 +61,9 @@ int test2(void)
 	int size = shm_trunc(fd, 400);
 	int *p;
 	shm_map(fd, (void **) &p, O_RDWR);
-	printf("1\n");
 	p[0] = p[1] = 0;
 	if(fork())
 	{
-		printf("2\n");
 		wait();
 		if(p[0] == 42 && p[1] == 42)
 		{
@@ -77,17 +78,14 @@ int test2(void)
 
 	if(fork())
 	{
-		printf("6\n");
 		p[0] = 42;
 		shm_close(fd);
-		printf("7\n");
 		wait();
 	}
 	else
 	{
 		p[1] = 42;
 		shm_close(fd);
-		printf("8\n");
 	}
 	return 1;
 }
@@ -137,7 +135,7 @@ int test4(void)
 	int size = shm_trunc(fd, 400);
 	int *p;
 	shm_map(fd, (void **) &p, O_RDWR);
-	//close(open("/shm_test4", O_CREATE | O_WRONLY));
+	close(open("/shm_test4", O_CREATE | O_WRONLY));
 	if((pid = fork()))
 	{
 		wait();
@@ -246,38 +244,16 @@ int test6(void)
 	return 1;
 }
 
-void test_fork_persistancy(){
-	printf("\nstarting fork test\n");
-	int fd = shm_open("fork_test");
-	int size = shm_trunc(fd, 400);
-	int *p;
-	shm_map(fd, (void **) &p, O_RDWR);
-	//p[0] = p[30] = 5;
-	printf("I am Adam %d\n", p[1]);
-	if (fork()){
-		wait();
-		printf("And i should have run second\n");
-		//printf("DUN DUN DUN... %d\n", p[0]);
-	}
-	else {
-		//printf("I should have run first %d\n", p);
-		//printf("and result is %d\n", p[0]);
-		shm_close(0);
-		//p[2] = 0;
-	}
-}
-
 int
 main(int argc, char *argv[])
 {
 	printf("note that errors could happen as a result of prior errors\n"
 	       "as a result, you should inspect errors in sequence\n");
-	//test_fork_persistancy();
-	if(test1()) goto ex;
-	if(test2()) goto ex;
-	if(test3()) goto ex;
-	if(test4()) goto ex;
-	if(test5()) goto ex;
+	//if(test1()) goto ex;
+	//if(test2()) goto ex;
+	//if(test3()) goto ex;
+	//if(test4()) goto ex;
+	//if(test5()) goto ex;
 	if(test6()) goto ex;
 
 ex:

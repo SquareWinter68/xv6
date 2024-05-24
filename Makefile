@@ -80,8 +80,8 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 STRIPNOTES = -R '.note' -R '.note.*'
 OBJDUMP = $(TOOLPREFIX)objdump
-CFLAGS = -mgeneral-regs-only -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -ggdb -m32 -fno-omit-frame-pointer -I.
-#CFLAGS = -mgeneral-regs-only -fno-pic -static -fno-builtin -fno-strict-aliasing -Og -g -Wall -ggdb -m32 -fno-omit-frame-pointer -I.
+#CFLAGS = -mgeneral-regs-only -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -ggdb -m32 -fno-omit-frame-pointer -I.
+CFLAGS = -mgeneral-regs-only -fno-pic -static -fno-builtin -fno-strict-aliasing -Og -g -Wall -ggdb -m32 -fno-omit-frame-pointer -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 ASFLAGS = -m32 -I. -gdwarf-2 -Wa,-divide
 # FreeBSD ld wants ``elf_i386_fbsd''

@@ -182,7 +182,7 @@ growproc(int n)
 }
 
 void copy_shm_vm(struct proc* parent, struct proc* child){
-    //cprintf("ENTERED COPY SHM_VM\n");
+    cprintf("ENTERED COPY SHM_VM PROC\n");
     pte_t* pte;
     uint start, stop;
     start = VIRT_SHM_MEM;
@@ -193,8 +193,26 @@ void copy_shm_vm(struct proc* parent, struct proc* child){
             uint physical_adress = PTE_ADDR(*pte);
             int flags = PTE_FLAGS(*pte);
             mappages(child->pgdir, (void*)start, PGSIZE, physical_adress, flags | PTE_U);
+			cprintf("maped one page");
         }
     }
+}
+void copy_shm_vm_1(struct proc* parent, struct proc* child, int object_descriptor, int flags){
+	pte_t* pte;
+	uint start;
+	struct shared_memory_object** shared_mem_obj_glob = &parent->shared_mem_objects[object_descriptor].shared_mem_object;
+	start = (PGROUNDUP(VIRT_SHM_MEM) + (object_descriptor * SHM_OBJ_MAX_SIZE));
+	for (int i = 0; i <= (*shared_mem_obj_glob)->allocated_pages; i ++){
+		if (mappages(child->pgdir, (char*) start, PGSIZE, V2P((*shared_mem_obj_glob)->memory[i]), flags | PTE_U) < 0){
+            if (i > 0){
+				cprintf("FAILED IN PROC.c THIS SHOULD NOT HAPPEN");
+                //unmap(current_proc->pgdir, persistent_address, address);
+                //return -1;
+            }
+        }
+        start += PGSIZE;
+	} 
+
 }
 
 // Create a new process copying p as the parent.
@@ -222,6 +240,20 @@ fork(void)
 	np->sz = curproc->sz;
 	np->parent = curproc;
 	*np->tf = *curproc->tf;
+	for (int i = 0; i < 16; i ++){
+		np->shared_mem_objects[i].shared_mem_object = curproc->shared_mem_objects[i].shared_mem_object;
+		np->shared_mem_objects[i].flags = curproc->shared_mem_objects[i].flags;
+		np->shared_mem_objects[i].virtual_adress = curproc->shared_mem_objects[i].virtual_adress;
+		int flags, va, shm_obj;
+		flags = np->shared_mem_objects[i].flags;
+		va = np->shared_mem_objects[i].virtual_adress;
+		shm_obj = (int)np->shared_mem_objects[i].shared_mem_object;
+		if (curproc->shared_mem_objects[i].shared_mem_object && curproc->shared_mem_objects[i].shared_mem_object->name[0] != 0){
+			curproc->shared_mem_objects[i].shared_mem_object->ref_count ++;
+			copy_shm_vm_1(curproc, np, i, curproc->shared_mem_objects[i].flags);
+		}
+	}
+	//copy_shm_vm(curproc, np);
 	// Clear %eax so that fork returns 0 in the child.
 	np->tf->eax = 0;
 
@@ -233,13 +265,7 @@ fork(void)
 	safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
 	pid = np->pid;
-	for (int i = 0; i < 16; i ++){
-		np->shared_mem_objects[i].shared_mem_object = curproc->shared_mem_objects[i].shared_mem_object;
-		np->shared_mem_objects[i].flags = curproc->shared_mem_objects[i].flags;
-		np->shared_mem_objects[i].virtual_adress = curproc->shared_mem_objects[i].virtual_adress;
-		np->shared_mem_objects[i].shared_mem_object->ref_count ++;
-	}
-	copy_shm_vm(curproc, np);
+	
 
 	acquire(&ptable.lock);
 
@@ -294,7 +320,25 @@ exit(void)
 	panic("zombie exit");
 }
 
+void clean_shm_mem(struct shared_memory_object* shm_obj){
+    for (int i = 0; i <= shm_obj->allocated_pages; i ++){
+        kfree(shm_obj->memory[i]);
+    }
+}
 
+void unmap1(pde_t* pgdir, uint from, uint to){
+   // cprintf("Unmap got called \n");
+    pte_t* page_table_entry;
+    uint adress = PGROUNDUP(from);
+    for (; adress < to; adress += PGSIZE){
+        
+        page_table_entry =  walkpgdir(pgdir, (char*)adress, 0);
+        if (*page_table_entry & PTE_P){
+            cprintf("UNMAPED ONE PAGE\n");
+			*page_table_entry = 0;
+        }
+    }
+}
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
@@ -316,34 +360,21 @@ wait(void)
 			if(p->state == ZOMBIE){
 				// Found one.
 				for (int obj = 0; obj < 16; obj++){
-					if (p->shared_mem_objects[obj].shared_mem_object != 0){
+					if (p->shared_mem_objects[obj].shared_mem_object != 0 && p->shared_mem_objects[obj].shared_mem_object->name[0] != 0){
 						//cprintf("id:%d\n", obj);
-						shm_close_direct(obj, p);
+						//shm_close_direct(obj, p);
 						struct shared_memory_object** shared_mem_obj_glob = &p->shared_mem_objects[obj].shared_mem_object;
 						p->shared_mem_objects[obj].flags = 0;
-						//(*shared_mem_obj_glob)->ref_count --;
-						
+						(*shared_mem_obj_glob)->ref_count --;
 						uint oldsz = PGROUNDUP(VIRT_SHM_MEM) + (obj * SHM_OBJ_MAX_SIZE);
-        				uint newsz = (*shared_mem_obj_glob)->size;
-						pte_t* page_table_entry;
-    					uint adress = PGROUNDUP(oldsz);
-    					for (; adress < newsz; adress += PGSIZE){
-						
-    					    page_table_entry =  walkpgdir(p->pgdir, (char*)adress, 0);
-    					    if (*page_table_entry & PTE_P){
-    					        cprintf("UNMAPED ONE PAGE\n");
-    					        *page_table_entry &= ~PTE_P;
-    					        *page_table_entry &= ~PTE_U;
-    					    }
-    					}
-
+        				uint newsz = oldsz + (*shared_mem_obj_glob)->size;
+						unmap1(p->pgdir, oldsz, newsz);
 						if ((*shared_mem_obj_glob)->ref_count == 0){
-							for (int i = 0; i <= (*shared_mem_obj_glob)->allocated_pages; i ++){
-    						    kfree((*shared_mem_obj_glob)->memory[i]);
-    						}
+							clean_shm_mem((*shared_mem_obj_glob));
 							(*shared_mem_obj_glob)->allocated_pages = -1;
 							(*shared_mem_obj_glob)->size = 0; 
 						}
+
 						memset((*shared_mem_obj_glob)->name, 0, 14);
 						p->shared_mem_objects[obj].virtual_adress = 0;
 						p->shared_mem_objects[obj].shared_mem_object = 0;
